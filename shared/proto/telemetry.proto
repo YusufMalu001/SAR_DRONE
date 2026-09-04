@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package sar.v1;
+
+option go_package = "sar-drone-prototype/shared/proto/sarv1";
+
+// A single drone telemetry sample used to geotag detections.
+message Telemetry {
+  double lat = 1;
+  double lon = 2;
+  double alt = 3;
+  double heading = 4;
+  // RFC3339 / ISO-8601 timestamp string, e.g. 2026-09-04T12:00:00Z.
+  string timestamp = 5;
+}

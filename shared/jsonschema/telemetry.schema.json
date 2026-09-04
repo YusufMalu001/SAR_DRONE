@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sar-drone-prototype/schemas/telemetry.schema.json",
+  "title": "Telemetry",
+  "description": "A single drone telemetry sample used to geotag detections.",
+  "type": "object",
+  "required": ["lat", "lon", "alt", "heading", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+    "lon": { "type": "number", "minimum": -180, "maximum": 180 },
+    "alt": { "type": "number", "description": "Altitude in meters." },
+    "heading": { "type": "number", "minimum": 0, "maximum": 360 },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

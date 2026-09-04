@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package sar.v1;
+
+option go_package = "sar-drone-prototype/shared/proto/sarv1";
+
+// Object/hazard class detected in a video frame.
+enum DetectionClass {
+  DETECTION_CLASS_UNSPECIFIED = 0;
+  DETECTION_CLASS_PERSON = 1;
+  DETECTION_CLASS_FIRE = 2;
+  DETECTION_CLASS_FLOOD = 3;
+  DETECTION_CLASS_DEBRIS = 4;
+  DETECTION_CLASS_STRUCTURAL_DAMAGE = 5;
+}
+
+// Source sensor/camera modality that produced the frame.
+enum Source {
+  SOURCE_UNSPECIFIED = 0;
+  SOURCE_RGB = 1;
+  SOURCE_THERMAL = 2;
+}
+
+// Axis-aligned bounding box in normalized [0,1] image coordinates.
+message BBox {
+  float x = 1;
+  float y = 2;
+  float w = 3;
+  float h = 4;
+}
+
+// A single detection event emitted by the inference-service and
+// consumed by the fusion-service for geotagging.
+message Detection {
+  string id = 1;
+  DetectionClass class = 2;
+  float confidence = 3;
+  BBox bbox = 4;
+  string frame_id = 5;
+  Source source = 6;
+  // RFC3339 / ISO-8601 timestamp string, e.g. 2026-09-04T12:00:00Z.
+  string timestamp = 7;
+}
