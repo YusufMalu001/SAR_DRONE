@@ -1,0 +1,15 @@
+# Large model weights, videos, and datasets are not committed.
+# Only small files under samples/ and sample_footage/ are kept in git.
+models/*
+videos/*
+datasets/*
+sample_footage/*
+
+!models/.gitkeep
+!videos/.gitkeep
+!datasets/.gitkeep
+
+# Demo video for the ingestion pipeline is not committed (too large) — the
+# small synthetic telemetry CSV that pairs with it is.
+!sample_footage/demo_telemetry.csv
+!sample_footage/README.md
