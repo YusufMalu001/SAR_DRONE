@@ -1,0 +1,113 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    environment:
+      POSTGRES_USER: sar
+      POSTGRES_PASSWORD: sar
+      POSTGRES_DB: sar
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sar -d sar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  inference-service:
+    build:
+      context: ./inference-service
+    ports:
+      - "8001:8001"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DETECTIONS_CHANNEL: detections
+      TELEMETRY_CHANNEL: telemetry
+      VIDEO_PATH: /data/sample_footage/demo_flight.mp4
+      TELEMETRY_CSV_PATH: /data/sample_footage/demo_telemetry.csv
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)\""
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  fusion-service:
+    build:
+      context: ./fusion-service
+    ports:
+      - "8002:8002"
+    environment:
+      REDIS_ADDR: redis:6379
+      DATABASE_URL: postgres://sar:sar@postgres:5432/sar?sslmode=disable
+      DETECTIONS_CHANNEL: detections
+      TELEMETRY_CHANNEL: telemetry
+      TELEMETRY_TOLERANCE_MS: "200"
+      CAMERA_HFOV_DEG: "90"
+      CAMERA_VFOV_DEG: "60"
+      HAZARD_PROXIMITY_METERS: "50"
+      HAZARD_WINDOW_SECONDS: "60"
+      HIGH_PRIORITY_THRESHOLD: "0.7"
+      LOCAL_QUEUE_PATH: /data/fusion-queue.db
+      ROUTE_OBSTRUCTION_METERS: "20"
+      ROUTE_STATUS_TELEMETRY_LIMIT: "5000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Dedicated volume for the local offline-buffering SQLite file — kept
+      # separate from the shared ./data bind mount (models/datasets/etc.)
+      # since this is fusion-service's own runtime state.
+      - fusion-queue-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  dashboard:
+    build:
+      context: ./dashboard
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_INFERENCE_URL: http://localhost:8001
+      VITE_FUSION_URL: http://localhost:8002
+    depends_on:
+      inference-service:
+        condition: service_healthy
+      fusion-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "node -e \"require('http').get('http://localhost:5173', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  postgres-data:
+  fusion-queue-data:
