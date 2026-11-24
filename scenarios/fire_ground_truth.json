@@ -1,0 +1,98 @@
+{
+  "scenario_name": "fire",
+  "description": "Wildfire brush fire incident with rapid smoke propagation and a fleeing individual",
+  "home_point": {
+    "lat": 18.52,
+    "lon": 73.85,
+    "alt": 60.0
+  },
+  "area_polygon": [
+    {
+      "lat": 18.52,
+      "lon": 73.85
+    },
+    {
+      "lat": 18.526,
+      "lon": 73.85
+    },
+    {
+      "lat": 18.526,
+      "lon": 73.856
+    },
+    {
+      "lat": 18.52,
+      "lon": 73.856
+    }
+  ],
+  "flight": {
+    "altitude": 60.0,
+    "speed": 6.0,
+    "sensor_rate_hz": 5.0,
+    "seed": 123,
+    "noise": {
+      "pos_std_m": 0.25,
+      "alt_std_m": 0.2,
+      "heading_std_deg": 0.5,
+      "attitude_std_deg": 0.6
+    }
+  },
+  "camera": {
+    "hfov_deg": 90.0,
+    "vfov_deg": 60.0,
+    "fps": 5.0
+  },
+  "ground_truth_objects": [
+    {
+      "id": "wildfire_front_1",
+      "type": "fire",
+      "lat": 18.523,
+      "lon": 18.5235,
+      "appearance_frames": [
+        8,
+        55
+      ],
+      "bbox": {
+        "x": 0.3,
+        "y": 0.15,
+        "w": 0.45,
+        "h": 0.4
+      },
+      "confidence": 0.96,
+      "description": "Active crown wildfire front emitting intense heat and smoke"
+    },
+    {
+      "id": "person_near_fire_1",
+      "type": "person",
+      "lat": 18.5225,
+      "lon": 73.853,
+      "appearance_frames": [
+        15,
+        45
+      ],
+      "bbox": {
+        "x": 0.65,
+        "y": 0.6,
+        "w": 0.08,
+        "h": 0.14
+      },
+      "confidence": 0.9,
+      "description": "Civilian caught in fire danger zone retreating towards road"
+    }
+  ],
+  "connectivity_events": [
+    {
+      "type": "link_down",
+      "t_start_s": 5.0,
+      "t_end_s": 9.0,
+      "action": "set_offline",
+      "description": "RF antenna attenuation through thick ionized smoke column"
+    }
+  ],
+  "gps_outages": [
+    {
+      "t_start_s": 11.0,
+      "t_end_s": 14.0,
+      "description": "Heavy multipath interference near canyon rim"
+    }
+  ]
+}

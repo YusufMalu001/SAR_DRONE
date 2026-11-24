@@ -1,0 +1,24 @@
+# training/configs/hazard_classifier_resnet18.yaml
+model_name: hazard_classifier_resnet18
+architecture: ResNet18
+task: classify
+dataset: AIDER (Aerial Image Dataset for Emergency Response)
+dataset_url: "https://doi.org/10.5281/zenodo.3888300"
+license: Research / Academic Use (KIOS CoE)
+classes:
+  - collapsed_building
+  - fire
+  - flood
+  - normal
+  - traffic_accident
+input_size: [1, 3, 224, 224]
+seed: 42
+opset: 17
+hyperparameters:
+  epochs: 15
+  batch_size: 32
+  lr: 0.0001
+  val_split: 0.15
+  test_split: 0.15
+min_confidence: 0.40
+min_map50_threshold: 0.30

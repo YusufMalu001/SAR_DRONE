@@ -10,3 +10,7 @@ Thumbs.db
 # Env files
 .env
 .env.local
+
+# Large weights and test assets
+*.onnx
+data/datasets/test_splits/

@@ -1,0 +1,30 @@
+# training/configs/person_yolov8n.yaml
+model_name: person_yolov8n
+architecture: YOLOv8n
+task: detect
+dataset: HERIDAL / VisDrone-DET
+dataset_url: "https://zenodo.org/record/4646979"
+license: CC-BY-NC-SA-4.0
+classes:
+  - person
+input_size: [1, 3, 960, 960]
+imgsz: 960
+seed: 42
+opset: 17
+hyperparameters:
+  epochs: 50
+  batch_size: 16
+  lr0: 0.01
+  lrf: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3.0
+  box_loss_gain: 7.5
+  cls_loss_gain: 0.5
+tiled_inference:
+  enabled: true
+  tile_size: [640, 640]
+  overlap_ratio: 0.20
+  iou_threshold: 0.45
+min_confidence: 0.35
+min_map50_threshold: 0.30

@@ -42,6 +42,9 @@ services:
     volumes:
       - ./data:/data
       - ./shared:/shared
+      - ./models:/models
+      - ./training:/training
+      - ./inference-service/tests:/srv/tests
     healthcheck:
       test:
         - "CMD-SHELL"

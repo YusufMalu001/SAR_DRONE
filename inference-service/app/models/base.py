@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from app.models.registry import registry, ModelIntegrityError
 
 
 class ModelNotFoundError(FileNotFoundError):
@@ -28,13 +29,7 @@ def clamp01(value: float) -> float:
 
 @dataclass
 class RawDetection:
-    """A single decoded detection, independent of any inference-engine API.
-
-    Kept separate from the pydantic `Detection` schema so detector classes
-    can be unit-tested by mocking `_infer()` without needing real model
-    weights or ultralytics/onnxruntime internals.
-    """
-
+    """A single decoded detection, independent of any inference-engine API."""
     class_id: int
     confidence: float
     x: float  # normalized top-left x, [0, 1]

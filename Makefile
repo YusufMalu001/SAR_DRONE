@@ -1,5 +1,7 @@
 SHELL := /bin/bash
-.PHONY: up down sitl demo test lint evaluate fetch-assets test-go test-ts test-contracts test-py lint-go lint-ts
+.PHONY: up down sitl demo test lint evaluate fetch-assets test-go test-ts test-contracts test-py test-sim lint-go lint-ts
+
+SCENARIO ?= flood
 
 up:
 	docker compose up -d --build
@@ -12,9 +14,9 @@ sitl:
 	@exit 1
 
 demo:
-	./scripts/seed_demo.sh
+	python3 -m simulator.runner --scenario scenarios/$(SCENARIO).yaml --verify-fusion
 
-test: test-go test-ts test-contracts test-py
+test: test-go test-ts test-contracts test-py test-sim
 
 test-go:
 	export PATH="/home/yusuf/.local/bin:/home/yusuf/.local/go/bin:$$PATH" && cd fusion-service && go test -v ./...
@@ -39,6 +41,9 @@ test-py:
 		docker compose run --rm inference-service pytest -v tests 2>/dev/null || echo "Run 'make up' to test Python inside healthy container"; \
 	fi
 
+test-sim:
+	pytest -v simulator/
+
 lint: lint-go lint-ts
 
 lint-go:
@@ -52,6 +57,4 @@ evaluate:
 	@exit 1
 
 fetch-assets:
-	@echo "Fetching / verifying asset directories..."
-	@mkdir -p data/models data/sample_footage data/datasets
-	@echo "Assets directories ready."
+	./scripts/fetch-assets.sh

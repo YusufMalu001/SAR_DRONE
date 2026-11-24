@@ -1,0 +1,103 @@
+{
+  "model_name": "hazard_classifier_resnet18",
+  "version": "1.0.0",
+  "architecture": "ResNet18",
+  "task": "classify",
+  "dataset": "AIDER (Aerial Image Dataset for Emergency Response)",
+  "license": "Research / Academic Use (KIOS CoE)",
+  "input_size": [
+    1,
+    3,
+    224,
+    224
+  ],
+  "classes": [
+    "collapsed_building",
+    "fire",
+    "flood",
+    "normal",
+    "traffic_accident"
+  ],
+  "splits": {
+    "train_samples": 450,
+    "val_samples": 80,
+    "test_samples": 75
+  },
+  "overall_metrics": {
+    "accuracy": 0.2,
+    "mAP50": 0.008,
+    "mAP50-95": 0.008,
+    "precision": 0.04,
+    "recall": 0.2
+  },
+  "per_class_metrics": {
+    "collapsed_building": {
+      "status": "experimental",
+      "map50": 0.0,
+      "map50_95": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "instances": 15
+    },
+    "fire": {
+      "status": "experimental",
+      "map50": 0.2,
+      "map50_95": 0.2,
+      "precision": 0.2,
+      "recall": 1.0,
+      "instances": 15
+    },
+    "flood": {
+      "status": "experimental",
+      "map50": 0.0,
+      "map50_95": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "instances": 15
+    },
+    "normal": {
+      "status": "experimental",
+      "map50": 0.0,
+      "map50_95": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "instances": 15
+    },
+    "traffic_accident": {
+      "status": "experimental",
+      "map50": 0.0,
+      "map50_95": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "instances": 15
+    }
+  },
+  "latency_ms": {
+    "fp32_cpu_ms": 33.01,
+    "int8_cpu_ms": 33.51,
+    "speedup_ratio": 0.99
+  },
+  "quantization": {
+    "fp32_size_mb": 42.64,
+    "int8_size_mb": 42.63,
+    "compression_ratio": 1.0,
+    "metrics": {
+      "accuracy": 0.2,
+      "mAP50": 0.008,
+      "mAP50-95": 0.008,
+      "precision": 0.04,
+      "recall": 0.2
+    },
+    "accuracy_delta": {
+      "accuracy": 0.0,
+      "mAP50": 0.0,
+      "mAP50-95": 0.0,
+      "precision": 0.0,
+      "recall": 0.0
+    }
+  },
+  "checksums": {
+    "fp32_sha256": "c5b1e77d070bdabf7b394800fb67b876b5d6cd2e6278da4a987df43f6f2bdc0b",
+    "int8_sha256": "cb0bf81f6f6fd384cf16fddae1f4cc1348da9a62d315f91089a539253b4b0a65"
+  }
+}

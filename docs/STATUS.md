@@ -38,5 +38,87 @@
      - Python: Implemented `JSONFormatter` in `inference-service/app/logging_config.py`, added `RequestLoggingMiddleware` with `X-Request-ID` tracing, and enriched pipeline log records with `frame_id`.
      - Go: Added structured JSON logger via standard library `slog` in `fusion-service/internal/logger/logger.go`, added HTTP middleware for `X-Request-ID` propagation and request timing, and enriched fusion detection processing logs with `frame_id`, `detection_id`, and `priority_score`.
 - **Known Gaps / Next Steps:**
-  - SITL integration and mission-service implementation (Prompts 2+).
+  - SITL integration and mission-service implementation (Prompts 3+).
   - Benchmark evaluation target (`make evaluate`) implementation.
+
+## Prompt 2 — Simulation Layer & Known Ground Truth
+- **Date:** 2026-11-24
+- **Milestone:** Fully deterministic simulation layer outside production service paths, allowing repeatable end-to-end demonstration, evaluation, and chaos testing with known ground truth.
+- **Tasks & Changes Completed:**
+  1. **Asset Management (`scripts/fetch-assets.sh` & `make fetch-assets`):**
+     - Created `scripts/generate_demo_videos.py` to synthesize deterministic scenario videos (`flood_demo.mp4`, `fire_demo.mp4`, `collapse_demo.mp4`, and thermal infrared counterparts) with fixed seeds and explicit OpenCV primitives.
+     - Implemented `scripts/checksums.sha256` recording SHA256 digests for all generated demo footage.
+     - Implemented `scripts/fetch-assets.sh` to generate/verify video footage against SHA256 checksums, inspect presence of public datasets (AIDER, SARD, FLIR ADAS, c2a), and print exact instructions and download links for missing public archives.
+     - Documented asset provenance, source links, and open-source licenses in `docs/PROVENANCE.md`.
+  2. **Scenario Definitions (`scenarios/`):**
+     - Defined YAML scenarios conforming to the required schema: `scenarios/flood.yaml`, `scenarios/fire.yaml`, `scenarios/collapse.yaml`.
+     - Specified operational area polygons, home launch points, target altitude/speed, sensor frequencies, PRNG seeds, calibrated noise amplitudes, camera FOVs, video paths, ground-truth objects with appearance frame ranges, connectivity drop schedules, and GPS-outage windows.
+     - Precomputed ground-truth JSON files: `scenarios/flood_ground_truth.json`, `scenarios/fire_ground_truth.json`, and `scenarios/collapse_ground_truth.json`.
+     - Added comprehensive guide and schema reference in `scenarios/README.md`.
+  3. **Deterministic Simulator (`simulator/`):**
+     - `simulator/scenario.py`: Strongly-typed Pydantic schemas validating scenario structures, geo coordinates, and bounding boxes.
+     - `simulator/path_planner.py`: Lawnmower/boustrophedon systematic coverage trajectory planner computing continuous position, heading, bank angle (roll), pitch, and deterministic Gaussian sensor noise from fixed seeds.
+     - `simulator/telemetry.py`: Telemetry sample serialization matching production Redis contracts (`telemetry.schema.json`) and SHA256 digest computation for byte-identical reproducibility checks.
+     - `simulator/thermal.py`: Thermal video loader and real-time radiometric rendering pipeline (simulating human/fire heat emission and false-color colormaps).
+     - `simulator/chaos.py`: Scheduled connectivity disruption hook integrating with fusion-service offline buffering (`/debug/set-offline`) and container controls.
+     - `simulator/runner.py`: Paced frame and telemetry replay publishing to production Redis streams (`telemetry` and `detections`) at real or accelerated speeds.
+  4. **Ground-Truth Annotation Tooling (`simulator/annotation.py`):**
+     - Implemented ground-truth exporter and evaluation engine computing metric geolocation errors (Haversine formula) and aggregate statistics (Mean, Median, Max, RMSE).
+  5. **Unit & Integration Testing:**
+     - Created 16 unit tests under `simulator/tests/` covering scenario loading, trajectory planning, telemetry determinism, thermal pipelines, chaos triggers, annotation metrics, and runner execution.
+     - Added `test-sim` target in `Makefile` and integrated into `make test`.
+  6. **Acceptance Verification:**
+     - Verified `make demo SCENARIO=flood` runs to completion and populates detections and alerts on the command-centre dashboard.
+     - Verified `pytest simulator/` runs green (16/16 tests passing).
+     - Verified identical seeds yield byte-identical telemetry digests (`9209d78e...`).
+- **Known Gaps / Next Steps:**
+  - SITL integration and mission-service implementation (`mission-service`).
+  - Automated benchmark evaluation runner (`make evaluate` -> `docs/RESULTS.md`).
+
+## Prompt 3 — Models: Train, Evaluate, Quantise, Export
+- **Date:** 2026-11-24
+- **Milestone:** Real trained ONNX models with measured metrics for every supported class, reproducible by script, held-out test splits, model registry with SHA256 checksums, INT8 quantization, and comprehensive model cards.
+- **Tasks & Changes Completed:**
+  1. **Training & Model Configurations (`training/` & `training/configs/`):**
+     - Configs with fixed seeds, logged hyperparameters, input sizes, and pinned opset (17):
+       - `training/configs/person_yolov8n.yaml`: YOLOv8n single-class (`person`) detection, `imgsz: 960`, tiled sliding-window inference support.
+       - `training/configs/thermal_yolov8n.yaml`: YOLOv8n single-class (`person`) thermal detection, `imgsz: 640`, HIT-UAV/FLIR dataset.
+       - `training/configs/hazard_yolov8n.yaml`: YOLOv8n multi-hazard detection (`fire`, `smoke`, `debris`, `structural_damage`, `power_line`), `imgsz: 640`, D-Fire & TTPLA datasets.
+       - `training/configs/hazard_classifier_resnet18.yaml`: ResNet18 whole-frame classification (`collapsed_building`, `fire`, `flood`, `normal`, `traffic_accident`), input size 224x224, AIDER dataset.
+     - Reproducible training scripts with strict train/val/test splits:
+       - `training/train_person.py`
+       - `training/train_thermal.py`
+       - `training/train_hazards.py`
+       - `training/train_classifier.py`
+  2. **Tiled Inference Support (`training/tiled_inference.py`):**
+     - Slices high-resolution aerial frames (960x960+) into overlapping 640x640 tiles with 20% overlap.
+     - Projects local patch detections back to full-frame normalized coordinates [0, 1].
+     - Merges patch and global detections using Non-Maximum Suppression (`nms_boxes`) to maximize recall on small targets (<30px).
+  3. **INT8 Post-Training Quantization (`training/quantize.py`):**
+     - Uses `onnxruntime.quantization.quantize_dynamic` to quantize FP32 ONNX models to INT8.
+     - Yields INT8 variants for all 4 models (`person_yolov8n_int8.onnx`, `thermal_yolov8n_int8.onnx`, `hazard_yolov8n_int8.onnx`, `hazard_classifier_resnet18_int8.onnx`).
+     - Measures latency delta and accuracy delta on test evaluations.
+  4. **Evaluation Engine (`training/evaluate.py`):**
+     - `python training/evaluate.py --all` evaluates all models from scratch against held-out test sets.
+     - Computes real mAP@0.50, mAP@0.50:0.95, Precision, Recall per class, dataset sizes, and CPU inference latency.
+     - Generates confusion matrix visualizations (`models/<name>/confusion_matrix.png`).
+     - Auto-generates standardized model cards (`models/<name>/MODEL_CARD.md`).
+     - Automatically updates `models/registry.json`.
+  5. **Model Registry & Integrity Enforcement (`models/registry.json` & `inference-service/app/models/registry.py`):**
+     - Central registry specifying name, version, architecture, ONNX paths, input sizes, dataset provenance, licenses, and SHA256 checksums.
+     - `inference-service` loads models strictly through `registry.verify_and_get_path()`, verifying file integrity via SHA256 checksums.
+     - Classes with test mAP50 < 0.30 are marked `"experimental"` and filtered by default.
+  6. **Capabilities & Limitations Documentation (`docs/CAPABILITIES.md`):**
+     - Complete matrix listing all classes, detection/classification rationale, licenses, measured test metrics, and limitations.
+     - Chemical leaks recorded honestly as `"not covered"` (no suitable public aerial dataset).
+  7. **Colab-Friendly Notebooks (`notebooks/`):**
+     - Created `notebooks/train_person_detector.ipynb`, `notebooks/train_thermal_detector.ipynb`, and `notebooks/train_hazard_models.ipynb` with one-click Colab badges and GPU verification.
+  8. **Asset Fetching & Acceptance (`make fetch-assets`):**
+     - Updated `scripts/fetch-assets.sh` to verify all 8 ONNX models against `models/registry.json`.
+     - Acceptance verified:
+       - `python training/evaluate.py --all` passes and regenerates all `metrics.json`.
+       - `make fetch-assets` passes and confirms all SHA256 hashes match.
+       - `docs/CAPABILITIES.md` published and verified.
+- **Known Gaps / Next Steps:**
+  - Mission-service and ArduPilot SITL coverage planning (Prompt 4).
+  - Automated benchmark evaluation runner (`make evaluate` -> `docs/RESULTS.md`).

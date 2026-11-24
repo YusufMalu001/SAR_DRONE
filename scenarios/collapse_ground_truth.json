@@ -1,0 +1,116 @@
+{
+  "scenario_name": "collapse",
+  "description": "Post-earthquake collapsed multi-story structure with heavy rubble, fallen power lines, and a trapped victim",
+  "home_point": {
+    "lat": 28.61,
+    "lon": 77.2,
+    "alt": 45.0
+  },
+  "area_polygon": [
+    {
+      "lat": 28.61,
+      "lon": 77.2
+    },
+    {
+      "lat": 28.616,
+      "lon": 77.2
+    },
+    {
+      "lat": 28.616,
+      "lon": 77.206
+    },
+    {
+      "lat": 28.61,
+      "lon": 77.206
+    }
+  ],
+  "flight": {
+    "altitude": 45.0,
+    "speed": 4.5,
+    "sensor_rate_hz": 5.0,
+    "seed": 456,
+    "noise": {
+      "pos_std_m": 0.15,
+      "alt_std_m": 0.1,
+      "heading_std_deg": 0.35,
+      "attitude_std_deg": 0.45
+    }
+  },
+  "camera": {
+    "hfov_deg": 90.0,
+    "vfov_deg": 60.0,
+    "fps": 5.0
+  },
+  "ground_truth_objects": [
+    {
+      "id": "collapsed_building_rubble_1",
+      "type": "structural_damage",
+      "lat": 28.613,
+      "lon": 77.203,
+      "appearance_frames": [
+        5,
+        55
+      ],
+      "bbox": {
+        "x": 0.15,
+        "y": 0.15,
+        "w": 0.5,
+        "h": 0.5
+      },
+      "confidence": 0.94,
+      "description": "Pancaked commercial building with exposed reinforcing bar and fractured slabs"
+    },
+    {
+      "id": "debris_and_powerline_1",
+      "type": "debris",
+      "lat": 28.612,
+      "lon": 77.2025,
+      "appearance_frames": [
+        10,
+        50
+      ],
+      "bbox": {
+        "x": 0.1,
+        "y": 0.7,
+        "w": 0.8,
+        "h": 0.2
+      },
+      "confidence": 0.91,
+      "description": "Downed transmission lines and masonry debris blocking roadway"
+    },
+    {
+      "id": "trapped_survivor_1",
+      "type": "person",
+      "lat": 28.6128,
+      "lon": 77.2032,
+      "appearance_frames": [
+        18,
+        45
+      ],
+      "bbox": {
+        "x": 0.4,
+        "y": 0.45,
+        "w": 0.08,
+        "h": 0.12
+      },
+      "confidence": 0.89,
+      "description": "Trapped survivor signaling under concrete void"
+    }
+  ],
+  "connectivity_events": [
+    {
+      "type": "link_down",
+      "t_start_s": 3.5,
+      "t_end_s": 7.5,
+      "action": "set_offline",
+      "description": "Local telecom tower power failure"
+    }
+  ],
+  "gps_outages": [
+    {
+      "t_start_s": 8.5,
+      "t_end_s": 11.5,
+      "description": "GPS occlusion between adjacent standing high-rise ruins"
+    }
+  ]
+}

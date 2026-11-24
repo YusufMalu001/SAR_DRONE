@@ -1,0 +1,70 @@
+name: fire
+description: Wildfire brush fire incident with rapid smoke propagation and a fleeing individual
+area_polygon:
+  - lat: 18.5200
+    lon: 73.8500
+  - lat: 18.5260
+    lon: 73.8500
+  - lat: 18.5260
+    lon: 73.8560
+  - lat: 18.5200
+    lon: 73.8560
+home_point:
+  lat: 18.5200
+  lon: 73.8500
+  alt: 60.0
+flight:
+  altitude: 60.0
+  speed: 6.0
+  sensor_rate_hz: 5.0
+  seed: 123
+  noise:
+    pos_std_m: 0.25
+    alt_std_m: 0.20
+    heading_std_deg: 0.50
+    attitude_std_deg: 0.60
+camera:
+  hfov_deg: 90.0
+  vfov_deg: 60.0
+  fps: 5.0
+video:
+  rgb_path: data/videos/fire_demo.mp4
+  thermal_path: data/videos/fire_demo_thermal.mp4
+  thermal_pipeline:
+    enabled: true
+    method: radiometric_colormap
+ground_truth_objects:
+  - id: wildfire_front_1
+    type: fire
+    lat: 18.5230
+    lon: 18.5235
+    appearance_frames: [8, 55]
+    bbox:
+      x: 0.30
+      y: 0.15
+      w: 0.45
+      h: 0.40
+    confidence: 0.96
+    description: Active crown wildfire front emitting intense heat and smoke
+  - id: person_near_fire_1
+    type: person
+    lat: 18.5225
+    lon: 73.8530
+    appearance_frames: [15, 45]
+    bbox:
+      x: 0.65
+      y: 0.60
+      w: 0.08
+      h: 0.14
+    confidence: 0.90
+    description: Civilian caught in fire danger zone retreating towards road
+connectivity_events:
+  - type: link_down
+    t_start_s: 5.0
+    t_end_s: 9.0
+    action: set_offline
+    description: RF antenna attenuation through thick ionized smoke column
+gps_outages:
+  - t_start_s: 11.0
+    t_end_s: 14.0
+    description: Heavy multipath interference near canyon rim

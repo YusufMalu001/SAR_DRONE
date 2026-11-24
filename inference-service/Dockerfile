@@ -3,7 +3,9 @@ FROM python:3.11-slim-bookworm
 WORKDIR /srv
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt && \
+    pip uninstall -y opencv-python 2>/dev/null || true && \
+    pip install --no-cache-dir --no-deps opencv-python-headless==4.10.0.84
 
 COPY app ./app
 COPY training ./training

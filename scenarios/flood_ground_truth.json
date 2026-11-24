@@ -1,0 +1,116 @@
+{
+  "scenario_name": "flood",
+  "description": "Inundated river basin with marooned survivors on isolated structures and rooftops",
+  "home_point": {
+    "lat": 20.0,
+    "lon": 78.0,
+    "alt": 50.0
+  },
+  "area_polygon": [
+    {
+      "lat": 20.0,
+      "lon": 78.0
+    },
+    {
+      "lat": 20.006,
+      "lon": 78.0
+    },
+    {
+      "lat": 20.006,
+      "lon": 78.006
+    },
+    {
+      "lat": 20.0,
+      "lon": 78.006
+    }
+  ],
+  "flight": {
+    "altitude": 50.0,
+    "speed": 5.0,
+    "sensor_rate_hz": 5.0,
+    "seed": 42,
+    "noise": {
+      "pos_std_m": 0.2,
+      "alt_std_m": 0.15,
+      "heading_std_deg": 0.4,
+      "attitude_std_deg": 0.5
+    }
+  },
+  "camera": {
+    "hfov_deg": 90.0,
+    "vfov_deg": 60.0,
+    "fps": 5.0
+  },
+  "ground_truth_objects": [
+    {
+      "id": "flood_hazard_sector_1",
+      "type": "flood",
+      "lat": 20.0028,
+      "lon": 78.0028,
+      "appearance_frames": [
+        5,
+        55
+      ],
+      "bbox": {
+        "x": 0.05,
+        "y": 0.05,
+        "w": 0.9,
+        "h": 0.9
+      },
+      "confidence": 0.95,
+      "description": "Severe flood inundation zone surrounding settlement"
+    },
+    {
+      "id": "survivor_rooftop_1",
+      "type": "person",
+      "lat": 20.0025,
+      "lon": 78.0025,
+      "appearance_frames": [
+        10,
+        45
+      ],
+      "bbox": {
+        "x": 0.45,
+        "y": 0.4,
+        "w": 0.08,
+        "h": 0.12
+      },
+      "confidence": 0.92,
+      "description": "Marooned survivor waving for evacuation on submerged rooftop"
+    },
+    {
+      "id": "survivor_rooftop_2",
+      "type": "person",
+      "lat": 20.003,
+      "lon": 78.003,
+      "appearance_frames": [
+        18,
+        48
+      ],
+      "bbox": {
+        "x": 0.55,
+        "y": 0.48,
+        "w": 0.07,
+        "h": 0.11
+      },
+      "confidence": 0.88,
+      "description": "Second survivor holding onto rooftop structure"
+    }
+  ],
+  "connectivity_events": [
+    {
+      "type": "link_down",
+      "t_start_s": 4.0,
+      "t_end_s": 8.0,
+      "action": "set_offline",
+      "description": "Cellular transmission lost during low-altitude scan behind ridge"
+    }
+  ],
+  "gps_outages": [
+    {
+      "t_start_s": 10.0,
+      "t_end_s": 13.0,
+      "description": "Satellite constellation blockage under dense rain squall"
+    }
+  ]
+}

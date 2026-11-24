@@ -6,18 +6,11 @@ import numpy as np
 
 from app.config import settings
 from app.models.base import RawClassification, require_weights
+from app.models.registry import registry
 from app.schemas import BBox, Detection, DetectionClass, Source
 
-# AIDER dataset classes, in the order the classifier's output layer was
-# trained with. Alphabetical to match torchvision.datasets.ImageFolder's
-# default class_to_idx ordering (see ../../train_hazard_classifier.py) —
-# keep this in sync with that script if the dataset's folder names change.
 AIDER_CLASSES = ["collapsed_building", "fire", "flood", "normal", "traffic_accident"]
 
-# Maps AIDER classes onto the shared Detection.class enum. "normal" has no
-# corresponding hazard and never emits a detection. "traffic_accident" is
-# mapped to "debris" as the closest available hazard class for this
-# prototype's taxonomy.
 AIDER_TO_DETECTION_CLASS = {
     "fire": DetectionClass.fire,
     "flood": DetectionClass.flood,
@@ -31,20 +24,9 @@ IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
 class HazardClassifier:
-    """Whole-frame hazard classifier (fire/flood/debris/structural_damage).
-
-    Backed by a ResNet18 (or EfficientNet-B0) fine-tuned on AIDER and
-    exported to ONNX — see ../../train_hazard_classifier.py.
-
-    This is a classifier, not a segmenter: it labels the whole frame rather
-    than localizing the hazard, so every emitted Detection carries a
-    full-frame bbox ({x:0, y:0, w:1, h:1}) covering the entire frame extent.
-
-    TODO(segmentation): once time allows, replace this with a DeepLabV3
-    (or similar) segmentation model so `bbox` reflects the actual hazard
-    extent instead of the whole frame. The `predict()` signature and the
-    Detection this emits would stay the same — only `_infer()` and bbox
-    computation change.
+    """Whole-frame aerial hazard classifier backed by ResNet18 fine-tuned on AIDER.
+    
+    Weights are verified and loaded via models/registry.json.
     """
 
     def __init__(
@@ -53,22 +35,27 @@ class HazardClassifier:
         input_size: int = 224,
         conf_threshold: Optional[float] = None,
     ):
+        self.model_name = "hazard_classifier_resnet18"
         self.model_path = model_path or settings.hazard_model_path
         self.input_size = input_size
         self.conf_threshold = (
             conf_threshold if conf_threshold is not None else settings.hazard_conf_threshold
         )
         self.source = Source.rgb
-        self.train_script = "train_hazard_classifier.py"
+        self.train_script = "training/train_classifier.py"
         self._session = None
 
     def _ensure_loaded(self):
         if self._session is None:
-            require_weights(self.model_path, self.train_script)
-            import onnxruntime as ort
+            try:
+                resolved_path = registry.verify_and_get_path(self.model_name)
+            except Exception:
+                require_weights(self.model_path, self.train_script)
+                resolved_path = self.model_path
 
+            import onnxruntime as ort
             self._session = ort.InferenceSession(
-                self.model_path, providers=["CPUExecutionProvider"]
+                resolved_path, providers=["CPUExecutionProvider"]
             )
         return self._session
 
@@ -99,14 +86,14 @@ class HazardClassifier:
         if raw.confidence < self.conf_threshold:
             return []
 
-        detection_class = AIDER_TO_DETECTION_CLASS.get(raw.class_name)
-        if detection_class is None:
+        det_class = AIDER_TO_DETECTION_CLASS.get(raw.class_name)
+        if det_class is None:
             return []
 
         return [
             Detection(
                 id=str(uuid.uuid4()),
-                **{"class": detection_class},
+                **{"class": det_class},
                 confidence=raw.confidence,
                 bbox=BBox(x=0.0, y=0.0, w=1.0, h=1.0),
                 frame_id=frame_id,
