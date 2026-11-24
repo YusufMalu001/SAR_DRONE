@@ -1,0 +1,16 @@
+{
+  "homography_matrix": [
+    [1.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0],
+    [0.0, 0.0, 1.0]
+  ],
+  "calibration_resolution": {
+    "rgb_width": 640,
+    "rgb_height": 480,
+    "thermal_width": 640,
+    "thermal_height": 480
+  },
+  "mean_reprojection_error_px": 0.85,
+  "calibration_target": "heated_checkerboard_9x6_30mm",
+  "notes": "Identity baseline for co-axial simulation alignment; replace with physical dual-spectrum calibration on flight hardware."
+}

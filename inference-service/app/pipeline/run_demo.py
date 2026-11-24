@@ -1,10 +1,4 @@
-"""Runs video ingestion + telemetry replay together against a shared clock.
-
-    python -m app.pipeline.run_demo [--loop] [--fps 5] [--max-frames 200]
-
-Both producers share one `PlaybackClock` so `detections` and `telemetry`
-stream entries land on the same timeline and can be joined by timestamp.
-"""
+"""Runs video ingestion + telemetry replay together against a shared clock."""
 
 import argparse
 import logging
@@ -13,9 +7,6 @@ import threading
 from app.config import settings
 from app.logging_config import setup_json_logging
 from app.messaging import get_redis
-from app.models.hazard_classifier import HazardClassifier
-from app.models.person_detector import PersonDetector
-from app.models.thermal_detector import ThermalDetector
 from app.pipeline.clock import PlaybackClock
 from app.pipeline.telemetry_publisher import TelemetryPublisher
 from app.pipeline.video_ingest import VideoIngestionPipeline
@@ -26,6 +17,7 @@ logger = logging.getLogger(__name__)
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--video", default=settings.video_path)
+    parser.add_argument("--thermal-video", default=None)
     parser.add_argument("--telemetry-csv", default=settings.telemetry_csv_path)
     parser.add_argument("--fps", type=float, default=settings.target_fps)
     parser.add_argument("--speed", type=float, default=settings.playback_speed)
@@ -41,11 +33,10 @@ def main() -> None:
     redis_client = get_redis()
     clock = PlaybackClock(speed=args.speed)
 
-    detectors = [PersonDetector(), ThermalDetector(), HazardClassifier()]
     video_pipeline = VideoIngestionPipeline(
         redis_client=redis_client,
-        detectors=detectors,
         video_path=args.video,
+        thermal_path=args.thermal_video,
         target_fps=args.fps,
         clock=clock,
     )

@@ -4,8 +4,7 @@ WORKDIR /srv
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt && \
-    pip uninstall -y opencv-python 2>/dev/null || true && \
-    pip install --no-cache-dir --no-deps opencv-python-headless==4.10.0.84
+    pip install --no-cache-dir --force-reinstall opencv-python-headless==4.10.0.84
 
 COPY app ./app
 COPY training ./training
