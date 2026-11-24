@@ -1,5 +1,4 @@
-// Mirrors ../../../shared/jsonschema/detection.schema.json and telemetry.schema.json,
-// plus fusion-service's REST/WebSocket-only additions (status, alerts, route-status).
+// Mirrors shared/jsonschema contracts + fusion-service & mission-service additions
 
 export type DetectionClass =
   | "person"
@@ -58,8 +57,6 @@ export interface ServiceHealth {
   [key: string]: unknown;
 }
 
-// fusion-service's fused detection: GET /detections, GET /detections/{id},
-// and the "detection" WS message payload.
 export type DetectionStatus =
   | "live"
   | "queued"
@@ -88,11 +85,72 @@ export interface AlertRecord {
   detection_id: string;
   priority_tier: PriorityTier;
   message: string;
+  state?: "active" | "acknowledged" | "resolved";
   created_at: string;
+  acknowledged_at?: string;
+  resolved_at?: string;
 }
 
-// /ws/live envelope: { "type": "detection" | "alert", "payload": ... }
-export type WSMessageType = "detection" | "alert";
+export interface EntityRecord {
+  id: string;
+  type: "survivor" | "hazard";
+  class: DetectionClass | string;
+  lat: number;
+  lon: number;
+  uncertainty_radius: number;
+  track_ids?: string[];
+  observation_count: number;
+  confidence: number;
+  modalities?: string[];
+  priority_score: number;
+  status: "active" | "rescued" | "cleared";
+  first_seen: string;
+  last_seen: string;
+  resolved_at?: string;
+  notes?: string;
+}
+
+export interface GeoJSONGeometry {
+  type: string;
+  coordinates: any;
+}
+
+export interface GeoJSONFeature {
+  type: "Feature";
+  geometry: GeoJSONGeometry;
+  properties: Record<string, any>;
+}
+
+export interface GeoJSONFeatureCollection {
+  type: "FeatureCollection";
+  features: GeoJSONFeature[];
+}
+
+export interface MissionStatusResponse {
+  state: string;
+  target_waypoints_count: number;
+  current_waypoint_idx: number;
+  armed: boolean;
+  battery_pct: number;
+  telemetry?: Telemetry;
+}
+
+export interface CoveragePlanWaypoint {
+  index: number;
+  lat: number;
+  lon: number;
+  alt_m: number;
+  action?: string;
+}
+
+export interface CoveragePlanResponse {
+  status: string;
+  total_waypoints: number;
+  coverage_fraction: number;
+  waypoints: CoveragePlanWaypoint[];
+}
+
+export type WSMessageType = "detection" | "alert" | "telemetry";
 
 export interface WSMessage<T = unknown> {
   type: WSMessageType;
