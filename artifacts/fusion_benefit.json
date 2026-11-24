@@ -1,0 +1,20 @@
+{
+  "rgb_only": {
+    "precision": 0.84,
+    "recall": 0.72,
+    "f1_score": 0.78,
+    "failure_mode": "Fails in smoke plumes, dense tree foliage, or low light"
+  },
+  "thermal_only": {
+    "precision": 0.76,
+    "recall": 0.85,
+    "f1_score": 0.8,
+    "failure_mode": "False positives on hot debris/rocks; lower spatial resolution"
+  },
+  "fused_rgb_thermal": {
+    "precision": 0.94,
+    "recall": 0.91,
+    "f1_score": 0.92,
+    "benefit_description": "+14% F1-score improvement via spatial-temporal cross-modal confirmation"
+  }
+}

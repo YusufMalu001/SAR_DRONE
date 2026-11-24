@@ -1,0 +1,14 @@
+{
+  "default_profile": {
+    "platform": "x86_64 CPU",
+    "sustained_fps": 412.22,
+    "peak_memory_mb": 23.92
+  },
+  "edge_profile": {
+    "cap": "4.0 CPU cores / 8.0 GB RAM",
+    "sustained_fps": 284.29,
+    "peak_memory_mb": 13.29,
+    "target_fps": 10.0,
+    "status": "PASS"
+  }
+}

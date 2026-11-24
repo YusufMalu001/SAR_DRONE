@@ -1,0 +1,15 @@
+{
+  "p50_ms": 38.09,
+  "p95_ms": 43.54,
+  "p99_ms": 45.89,
+  "mean_ms": 38.13,
+  "stages_ms": {
+    "decode": 1.79,
+    "preprocess": 2.44,
+    "inference": 28.24,
+    "postprocess": 1.2,
+    "redis_publish": 0.82,
+    "fusion_geoprojection": 2.14,
+    "websocket_delivery": 1.5
+  }
+}

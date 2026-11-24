@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: up down sitl demo test lint evaluate fetch-assets test-go test-ts test-contracts test-py test-sim test-mission lint-go lint-ts test-chaos
+.PHONY: up down sitl demo test lint evaluate fetch-assets test-go test-ts test-e2e demo-capture test-contracts test-py test-sim test-mission lint-go lint-ts test-chaos evaluate-smoke
 
 SCENARIO ?= flood
 MODE ?= replay
@@ -16,14 +16,21 @@ sitl:
 demo:
 	python3 -m simulator.runner --scenario scenarios/$(SCENARIO).yaml --mode $(MODE) --verify-fusion
 
-test: test-go test-ts test-contracts test-py test-sim test-mission
+demo-capture:
+	cd dashboard && npx playwright test e2e/capture_demo.spec.ts
+
+test: test-go test-ts test-e2e test-contracts test-py test-sim test-mission
 
 test-go:
 	export PATH="/home/yusuf/.local/bin:/home/yusuf/.local/go/bin:$$PATH" && cd fusion-service && go test -v ./...
 	export PATH="/home/yusuf/.local/bin:/home/yusuf/.local/go/bin:$$PATH" && cd shared/generated/go && go test -v ./...
 
 test-ts:
-	cd dashboard && npm run test
+	cd dashboard && npm run test:unit
+	python3 scripts/check_no_hardcoded_numbers.py
+
+test-e2e:
+	cd dashboard && npx playwright test e2e/dashboard.spec.ts
 
 test-contracts:
 	python3 shared/generate_contracts.py
@@ -60,6 +67,9 @@ lint-ts:
 
 evaluate:
 	python3 scripts/evaluate_system.py
+
+evaluate-smoke:
+	python3 scripts/evaluate_smoke.py
 
 fetch-assets:
 	./scripts/fetch-assets.sh

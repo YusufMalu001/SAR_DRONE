@@ -1,0 +1,8 @@
+{
+  "total_test_routes": 20,
+  "hazard_buffer_avoidance_rate": 100.0,
+  "no_safe_route_cases_tested": 5,
+  "no_safe_route_flagged_rate": 100.0,
+  "mean_planning_time_ms": 4.12,
+  "status": "PASS"
+}

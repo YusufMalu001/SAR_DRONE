@@ -1,0 +1,8 @@
+{
+  "travel_distance_m": 200.0,
+  "outage_duration_s": 40.0,
+  "cumulative_drift_m": 0.67,
+  "drift_per_100m": 0.33,
+  "max_allowable_drift_m_per_100m": 5.0,
+  "status": "PASS"
+}

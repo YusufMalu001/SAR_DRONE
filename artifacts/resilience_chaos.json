@@ -1,0 +1,11 @@
+{
+  "injected_fault": "PostgreSQL container stopped mid-flight during burst emission",
+  "buffer_mechanism": "SQLite WAL write-ahead log (/data/fusion-queue.db)",
+  "emitted_detections": 150,
+  "recovered_detections": 150,
+  "lost_detections": 0,
+  "drain_recovery_time_s": 1.42,
+  "chronological_ordering_violations": 0,
+  "deduplication_integrity_pct": 100.0,
+  "status": "PASS"
+}

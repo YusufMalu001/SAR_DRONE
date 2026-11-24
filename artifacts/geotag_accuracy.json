@@ -1,0 +1,26 @@
+{
+  "flood": {
+    "survivors_true": 2,
+    "survivors_found": 2,
+    "false_alarms": 0,
+    "mean_error_m": 5.44,
+    "median_error_m": 5.44,
+    "p95_error_m": 6.39
+  },
+  "fire": {
+    "survivors_true": 1,
+    "survivors_found": 1,
+    "false_alarms": 0,
+    "mean_error_m": 16.13,
+    "median_error_m": 16.13,
+    "p95_error_m": 16.13
+  },
+  "collapse": {
+    "survivors_true": 1,
+    "survivors_found": 1,
+    "false_alarms": 0,
+    "mean_error_m": 8.04,
+    "median_error_m": 8.04,
+    "p95_error_m": 8.04
+  }
+}

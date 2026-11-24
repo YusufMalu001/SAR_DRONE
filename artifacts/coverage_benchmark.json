@@ -1,0 +1,13 @@
+{
+  "polygon_area_m2": 360000.0,
+  "total_waypoints": 26,
+  "coverage_fraction": 1.0,
+  "coverage_fraction_pct": 100.0,
+  "planning_time_ms": 2.71,
+  "adaptive_search_orbit": {
+    "trigger_condition": "Survivor confidence >= 0.50",
+    "orbit_waypoints": 8,
+    "orbit_radius_m": 15.0,
+    "verification_status": "PASS"
+  }
+}
