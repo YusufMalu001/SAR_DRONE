@@ -41,6 +41,7 @@ services:
         condition: service_healthy
     volumes:
       - ./data:/data
+      - ./shared:/shared
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -80,7 +81,7 @@ services:
       # since this is fusion-service's own runtime state.
       - fusion-queue-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8002/health"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -111,3 +112,9 @@ services:
 volumes:
   postgres-data:
   fusion-queue-data:
+
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1400"

@@ -15,7 +15,6 @@ class Settings:
 
     # Model weights. Defaults assume the docker-compose `./data:/data` mount;
     # override via env vars for non-Docker local runs (e.g. ../data/models/...).
-    model_path: str = os.getenv("MODEL_PATH", "/data/models/placeholder.onnx")
     person_model_path: str = os.getenv("PERSON_MODEL_PATH", "/data/models/person_yolov8.onnx")
     thermal_model_path: str = os.getenv("THERMAL_MODEL_PATH", "/data/models/thermal_yolov8.onnx")
     hazard_model_path: str = os.getenv("HAZARD_MODEL_PATH", "/data/models/hazard_classifier.onnx")

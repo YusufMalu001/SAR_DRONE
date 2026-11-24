@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -188,7 +189,11 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 	tolerance := time.Duration(c.cfg.TelemetryToleranceMS) * time.Millisecond
 	sample, ok := c.telemetryBuf.Nearest(detectedAt, tolerance)
 	if !ok {
-		log.Printf("fusion: dropping detection %s: no telemetry within %s", d.ID, tolerance)
+		slog.WarnContext(ctx, "dropping detection: no telemetry within tolerance",
+			slog.String("detection_id", d.ID),
+			slog.String("frame_id", d.FrameID),
+			slog.String("tolerance", tolerance.String()),
+		)
 		return
 	}
 
@@ -232,6 +237,13 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 		Lon:           point.Lon,
 		PriorityScore: score,
 	}
+
+	slog.InfoContext(ctx, "fused detection",
+		slog.String("detection_id", d.ID),
+		slog.String("frame_id", d.FrameID),
+		slog.String("class", d.Class),
+		slog.Float64("priority_score", score),
+	)
 
 	// Offline buffering: SQLite is written FIRST, always — Postgres (or a
 	// future external/cloud sync) is only attempted after this succeeds,

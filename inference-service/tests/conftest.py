@@ -6,6 +6,12 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DETECTION_SCHEMA_PATH = REPO_ROOT / "shared" / "jsonschema" / "detection.schema.json"
+if not DETECTION_SCHEMA_PATH.exists():
+    alt_path = Path("/shared/jsonschema/detection.schema.json")
+    if alt_path.exists():
+        DETECTION_SCHEMA_PATH = alt_path
+    elif (Path(__file__).resolve().parents[1] / "shared" / "jsonschema" / "detection.schema.json").exists():
+        DETECTION_SCHEMA_PATH = Path(__file__).resolve().parents[1] / "shared" / "jsonschema" / "detection.schema.json"
 
 
 @pytest.fixture

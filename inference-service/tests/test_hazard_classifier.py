@@ -17,7 +17,7 @@ def test_hazard_classifier_output_matches_schema(sample_image, detection_schema,
     detection = detections[0]
     assert detection.class_ == DetectionClass.fire
     assert detection.source == Source.rgb
-    # Whole-frame placeholder bbox until segmentation replaces the classifier.
+    # Whole-frame extent bbox until segmentation replaces the classifier.
     assert detection.bbox.x == 0.0 and detection.bbox.y == 0.0
     assert detection.bbox.w == 1.0 and detection.bbox.h == 1.0
 

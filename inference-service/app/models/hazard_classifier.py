@@ -38,7 +38,7 @@ class HazardClassifier:
 
     This is a classifier, not a segmenter: it labels the whole frame rather
     than localizing the hazard, so every emitted Detection carries a
-    full-frame bbox ({x:0, y:0, w:1, h:1}) as a placeholder.
+    full-frame bbox ({x:0, y:0, w:1, h:1}) covering the entire frame extent.
 
     TODO(segmentation): once time allows, replace this with a DeepLabV3
     (or similar) segmentation model so `bbox` reflects the actual hazard

@@ -14,6 +14,7 @@ import (
 	"sar-drone-prototype/fusion-service/internal/db"
 	"sar-drone-prototype/fusion-service/internal/fusion"
 	"sar-drone-prototype/fusion-service/internal/localqueue"
+	"sar-drone-prototype/fusion-service/internal/logger"
 	migraterunner "sar-drone-prototype/fusion-service/internal/migrate"
 	"sar-drone-prototype/fusion-service/internal/migrations"
 	"sar-drone-prototype/fusion-service/internal/messaging"
@@ -24,6 +25,7 @@ import (
 )
 
 func main() {
+	logger.Init()
 	cfg := config.Load()
 
 	if err := migraterunner.Run(cfg.DatabaseURL, migrations.FS); err != nil {

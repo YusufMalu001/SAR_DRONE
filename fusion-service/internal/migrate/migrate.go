@@ -8,6 +8,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -16,20 +17,33 @@ import (
 
 // Run applies all pending migrations in fs to databaseURL. Safe to call on
 // every startup — a no-op once the schema is already current.
+// Retries if the database is not ready yet during container startup.
 func Run(databaseURL string, fs embed.FS) error {
 	source, err := iofs.New(fs, ".")
 	if err != nil {
 		return fmt.Errorf("open embedded migrations: %w", err)
 	}
 
-	m, err := migrate.NewWithSourceInstance("iofs", source, databaseURL)
-	if err != nil {
-		return fmt.Errorf("init migrator: %w", err)
+	var m *migrate.Migrate
+	var lastErr error
+	for attempt := 1; attempt <= 15; attempt++ {
+		m, lastErr = migrate.NewWithSourceInstance("iofs", source, databaseURL)
+		if lastErr == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	if lastErr != nil {
+		return fmt.Errorf("init migrator after retries: %w", lastErr)
 	}
 	defer m.Close()
 
-	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		return fmt.Errorf("apply migrations: %w", err)
+	for attempt := 1; attempt <= 15; attempt++ {
+		lastErr = m.Up()
+		if lastErr == nil || errors.Is(lastErr, migrate.ErrNoChange) {
+			return nil
+		}
+		time.Sleep(1 * time.Second)
 	}
-	return nil
+	return fmt.Errorf("apply migrations after retries: %w", lastErr)
 }

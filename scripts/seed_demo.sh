@@ -25,7 +25,7 @@ fail() { printf '[seed_demo] FAIL: %s\n' "$1" >&2; exit 1; }
 cleanup() {
   if [ -n "$PIPELINE_PID" ] && kill -0 "$PIPELINE_PID" 2>/dev/null; then
     log "stopping ingestion pipeline (pid $PIPELINE_PID)"
-    docker compose exec -T inference-service pkill -f app.pipeline.run_demo 2>/dev/null || true
+    docker compose exec -T inference-service pkill -f app.pipeline.run_demo 2>/dev/null || docker compose exec -T inference-service python -c "import os, signal; [os.kill(int(p), signal.SIGTERM) for p in [f for f in os.listdir('/proc') if f.isdigit() and 'run_demo' in open(f'/proc/{f}/cmdline', 'rb').read().decode('latin1', 'replace')]]" 2>/dev/null || true
     kill "$PIPELINE_PID" 2>/dev/null || true
   fi
 }

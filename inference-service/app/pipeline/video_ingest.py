@@ -96,3 +96,9 @@ class VideoIngestionPipeline:
 
             for detection in detections:
                 xadd_json(self.redis_client, self.stream_name, detection.model_dump(by_alias=True))
+                logger.info(
+                    "published detection %s class=%s",
+                    detection.id,
+                    detection.class_,
+                    extra={"frame_id": frame_id},
+                )

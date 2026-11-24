@@ -11,6 +11,7 @@ import logging
 import threading
 
 from app.config import settings
+from app.logging_config import setup_json_logging
 from app.messaging import get_redis
 from app.models.hazard_classifier import HazardClassifier
 from app.models.person_detector import PersonDetector
@@ -34,7 +35,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    setup_json_logging()
     args = build_arg_parser().parse_args()
 
     redis_client = get_redis()

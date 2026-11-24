@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  go:
+    name: Go (fusion-service)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Verify modules
+        run: |
+          cd fusion-service
+          go mod verify
+      - name: Go vet
+        run: |
+          cd fusion-service
+          go vet ./...
+      - name: Go tests
+        run: |
+          cd fusion-service
+          go test -v ./...
+      - name: Contracts Go tests
+        run: |
+          cd shared/generated/go
+          go test -v ./...
+
+  dashboard:
+    name: Dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: |
+          cd dashboard
+          npm ci
+      - name: Lint
+        run: |
+          cd dashboard
+          npm run lint
+      - name: Build
+        run: |
+          cd dashboard
+          npm run build
+
+  contracts:
+    name: Schema & Contracts Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Generate Contracts
+        run: |
+          python shared/generate_contracts.py
+      - name: Contract Test across Python, Go, and TypeScript
+        run: |
+          node shared/tests/test_contracts.mjs
+          cd shared/generated/go
+          go test -v ./...
+
+  python:
+    name: Python (inference-service)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          cd inference-service
+          pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt pytest
+      - name: Run unit tests
+        run: |
+          cd inference-service
+          pytest -v tests

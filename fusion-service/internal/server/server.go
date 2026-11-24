@@ -13,6 +13,7 @@ import (
 	"sar-drone-prototype/fusion-service/internal/connectivity"
 	"sar-drone-prototype/fusion-service/internal/handlers"
 	"sar-drone-prototype/fusion-service/internal/localqueue"
+	"sar-drone-prototype/fusion-service/internal/logger"
 	"sar-drone-prototype/fusion-service/internal/ws"
 )
 
@@ -23,7 +24,7 @@ func NewMux(
 	queue *localqueue.Queue,
 	monitor *connectivity.Monitor,
 	cfg config.Config,
-) *http.ServeMux {
+) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", handlers.Health(pool, redisClient))
@@ -46,5 +47,5 @@ func NewMux(
 	mux.HandleFunc("GET /debug/offline-status", handlers.OfflineStatus(monitor))
 	mux.HandleFunc("GET /debug/queue", handlers.QueueStatus(queue))
 
-	return mux
+	return logger.Middleware(mux)
 }
