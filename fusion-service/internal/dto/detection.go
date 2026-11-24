@@ -33,4 +33,6 @@ type DetectionRecord struct {
 	DetectedAt    time.Time `json:"detected_at"`
 	PriorityScore float64   `json:"priority_score"`
 	Status        string    `json:"status"`
+	TrackID       string    `json:"track_id,omitempty"`
+	Modalities    []string  `json:"modalities,omitempty"`
 }

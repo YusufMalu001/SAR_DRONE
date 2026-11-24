@@ -236,6 +236,8 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 		Lat:           point.Lat,
 		Lon:           point.Lon,
 		PriorityScore: score,
+		TrackID:       d.TrackID,
+		Modalities:    d.Modalities,
 	}
 
 	slog.InfoContext(ctx, "fused detection",
@@ -381,6 +383,8 @@ func (c *Consumer) broadcastDetection(fd db.FusedDetection, status string) {
 		DetectedAt:    fd.DetectedAt,
 		PriorityScore: fd.PriorityScore,
 		Status:        status,
+		TrackID:       fd.TrackID,
+		Modalities:    fd.Modalities,
 	}
 
 	envelope, err := dto.NewWSMessage(dto.WSMessageDetection, record)

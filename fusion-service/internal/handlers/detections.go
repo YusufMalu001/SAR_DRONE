@@ -77,6 +77,8 @@ func toRecord(row db.DetectionRow) dto.DetectionRecord {
 		DetectedAt:    row.DetectedAt,
 		PriorityScore: row.PriorityScore,
 		Status:        dto.StatusSynced,
+		TrackID:       row.TrackID,
+		Modalities:    row.Modalities,
 	}
 }
 

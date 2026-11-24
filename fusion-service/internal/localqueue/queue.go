@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -32,7 +33,9 @@ CREATE TABLE IF NOT EXISTS queued_detections (
 	lat            REAL NOT NULL,
 	lon            REAL NOT NULL,
 	priority_score REAL NOT NULL,
-	queued_at      TEXT NOT NULL
+	queued_at      TEXT NOT NULL,
+	track_id       TEXT,
+	modalities     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_queued_detections_detected_at ON queued_detections (detected_at);
 `
@@ -59,6 +62,10 @@ func Open(path string) (*Queue, error) {
 		conn.Close()
 		return nil, fmt.Errorf("init sqlite queue schema: %w", err)
 	}
+	// Best-effort column additions for migration of existing db files
+	_, _ = conn.Exec(`ALTER TABLE queued_detections ADD COLUMN track_id TEXT;`)
+	_, _ = conn.Exec(`ALTER TABLE queued_detections ADD COLUMN modalities TEXT;`)
+
 	return &Queue{conn: conn}, nil
 }
 
@@ -69,15 +76,16 @@ func (q *Queue) Close() error {
 // Enqueue durably records fd. A duplicate id (e.g. re-processing after a
 // crash) is a no-op.
 func (q *Queue) Enqueue(ctx context.Context, fd db.FusedDetection) error {
+	mods := strings.Join(fd.Modalities, ",")
 	_, err := q.conn.ExecContext(ctx, `
 		INSERT INTO queued_detections
 			(id, class, confidence, bbox_x, bbox_y, bbox_w, bbox_h, frame_id, source,
-			 detected_at, telemetry_at, lat, lon, priority_score, queued_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 detected_at, telemetry_at, lat, lon, priority_score, queued_at, track_id, modalities)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO NOTHING`,
 		fd.ID, fd.Class, fd.Confidence, fd.BBoxX, fd.BBoxY, fd.BBoxW, fd.BBoxH, fd.FrameID, fd.Source,
 		formatTime(fd.DetectedAt), formatTime(fd.TelemetryAt), fd.Lat, fd.Lon, fd.PriorityScore,
-		formatTime(time.Now().UTC()),
+		formatTime(time.Now().UTC()), fd.TrackID, mods,
 	)
 	if err != nil {
 		return fmt.Errorf("enqueue detection %s: %w", fd.ID, err)
@@ -129,7 +137,7 @@ func (q *Queue) IDs(ctx context.Context) ([]string, error) {
 func (q *Queue) ListOrdered(ctx context.Context) ([]db.FusedDetection, error) {
 	rows, err := q.conn.QueryContext(ctx, `
 		SELECT id, class, confidence, bbox_x, bbox_y, bbox_w, bbox_h, frame_id, source,
-		       detected_at, telemetry_at, lat, lon, priority_score
+		       detected_at, telemetry_at, lat, lon, priority_score, COALESCE(track_id, ''), COALESCE(modalities, '')
 		FROM queued_detections
 		ORDER BY detected_at ASC`)
 	if err != nil {
@@ -141,9 +149,11 @@ func (q *Queue) ListOrdered(ctx context.Context) ([]db.FusedDetection, error) {
 	for rows.Next() {
 		var fd db.FusedDetection
 		var detectedAt, telemetryAt string
+		var trackID, mods string
 		err := rows.Scan(
 			&fd.ID, &fd.Class, &fd.Confidence, &fd.BBoxX, &fd.BBoxY, &fd.BBoxW, &fd.BBoxH,
 			&fd.FrameID, &fd.Source, &detectedAt, &telemetryAt, &fd.Lat, &fd.Lon, &fd.PriorityScore,
+			&trackID, &mods,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan queued detection: %w", err)
@@ -154,6 +164,10 @@ func (q *Queue) ListOrdered(ctx context.Context) ([]db.FusedDetection, error) {
 		}
 		if fd.TelemetryAt, err = time.Parse(time.RFC3339Nano, telemetryAt); err != nil {
 			return nil, fmt.Errorf("parse queued telemetry_at: %w", err)
+		}
+		fd.TrackID = trackID
+		if mods != "" {
+			fd.Modalities = strings.Split(mods, ",")
 		}
 		out = append(out, fd)
 	}

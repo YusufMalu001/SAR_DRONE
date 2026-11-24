@@ -27,6 +27,8 @@ type FusedDetection struct {
 	Lat           float64
 	Lon           float64
 	PriorityScore float64
+	TrackID       string
+	Modalities    []string
 }
 
 // InsertDetection persists a fused detection. The `id` column is the
@@ -37,13 +39,15 @@ func InsertDetection(ctx context.Context, pool *pgxpool.Pool, fd FusedDetection)
 	_, err := pool.Exec(ctx, `
 		INSERT INTO detections
 			(id, class, confidence, bbox_x, bbox_y, bbox_w, bbox_h, frame_id, source,
-			 detected_at, telemetry_at, geom, priority_score)
+			 detected_at, telemetry_at, geom, priority_score, track_id, modalities)
 		VALUES
 			($1, $2, $3, $4, $5, $6, $7, $8, $9,
-			 $10, $11, ST_SetSRID(ST_MakePoint($12, $13), 4326), $14)
-		ON CONFLICT (id) DO NOTHING`,
+			 $10, $11, ST_SetSRID(ST_MakePoint($12, $13), 4326), $14, $15, $16)
+		ON CONFLICT (id) DO UPDATE SET
+			track_id = EXCLUDED.track_id,
+			modalities = EXCLUDED.modalities`,
 		fd.ID, fd.Class, fd.Confidence, fd.BBoxX, fd.BBoxY, fd.BBoxW, fd.BBoxH, fd.FrameID, fd.Source,
-		fd.DetectedAt, fd.TelemetryAt, fd.Lon, fd.Lat, fd.PriorityScore,
+		fd.DetectedAt, fd.TelemetryAt, fd.Lon, fd.Lat, fd.PriorityScore, fd.TrackID, fd.Modalities,
 	)
 	if err != nil {
 		return fmt.Errorf("insert detection %s: %w", fd.ID, err)
@@ -64,13 +68,15 @@ type DetectionRow struct {
 	DetectedAt    time.Time
 	PriorityScore float64
 	CreatedAt     time.Time
+	TrackID       string
+	Modalities    []string
 }
 
-const detectionColumns = `id, class, confidence, ST_Y(geom), ST_X(geom), frame_id, source, detected_at, priority_score, created_at`
+const detectionColumns = `id, class, confidence, ST_Y(geom), ST_X(geom), frame_id, source, detected_at, priority_score, created_at, COALESCE(track_id, ''), COALESCE(modalities, '{}')`
 
 func scanDetectionRow(row pgx.Row) (DetectionRow, error) {
 	var d DetectionRow
-	err := row.Scan(&d.ID, &d.Class, &d.Confidence, &d.Lat, &d.Lon, &d.FrameID, &d.Source, &d.DetectedAt, &d.PriorityScore, &d.CreatedAt)
+	err := row.Scan(&d.ID, &d.Class, &d.Confidence, &d.Lat, &d.Lon, &d.FrameID, &d.Source, &d.DetectedAt, &d.PriorityScore, &d.CreatedAt, &d.TrackID, &d.Modalities)
 	return d, err
 }
 
