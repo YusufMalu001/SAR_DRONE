@@ -120,5 +120,44 @@
        - `make fetch-assets` passes and confirms all SHA256 hashes match.
        - `docs/CAPABILITIES.md` published and verified.
 - **Known Gaps / Next Steps:**
-  - Mission-service and ArduPilot SITL coverage planning (Prompt 4).
+  - Mission-service and ArduPilot SITL coverage planning (Prompt 5).
+  - Automated benchmark evaluation runner (`make evaluate` -> `docs/RESULTS.md`).
+
+## Prompt 4 — Inference Service v2: Multi-Sensor, Tracking, Edge-Ready
+- **Date:** 2026-11-24
+- **Milestone:** Production-grade on-device multi-sensor inference engine using pure ONNX Runtime, cross-tile NMS tiling, ByteTrack multi-object tracking with persistent track IDs, homography-based RGB-thermal spatial fusion, backpressure bounded queues with drop-oldest policy, and Prometheus `/metrics` stage instrumentation.
+- **Tasks & Changes Completed:**
+  1. **Pure ONNX Runtime Execution (`inference-service/app/models/yolo_detector.py`):**
+     - Completely eliminated ultralytics runtime dependencies from service hot paths.
+     - Implemented direct `onnxruntime.InferenceSession` with configurable providers (`CPUExecutionProvider` default, `CUDAExecutionProvider`, and `TensorrtExecutionProvider` selectable via `EXECUTION_PROVIDER` config).
+     - Added letterbox image preprocessing, NumPy-based class-aware NMS, coordinate clamping to [0, 1], and configurable intra/inter-op threads.
+     - Documented edge deployment profile (`docs/EDGE_PROFILE.md`) for Jetson Orin Nano / Xavier NX / Raspberry Pi 5.
+  2. **Tiled Inference Engine (`inference-service/app/pipeline/tiling.py`):**
+     - SAHI-style tiled inference with configurable tile size (default 640x640) and overlap (default 20%).
+     - Merges multi-tile sub-window detections with whole-frame detections using cross-tile NMS to maximize detection sensitivity on small aerial targets.
+  3. **Multi-Modality Tracking (`inference-service/app/pipeline/tracker.py`):**
+     - Implemented ByteTrack-style two-stage Kalman-association tracker with persistent IDs (`track_id`), track age, and tentative/confirmed/lost lifecycle states.
+     - Matches high-confidence detections first, then recovers low-score occluded targets in a second association stage.
+     - Emits `track_id` on every detection update.
+  4. **RGB-Thermal Cross-Modal Fusion (`inference-service/app/pipeline/fusion.py`):**
+     - Created calibration matrix (`data/calibration/rgb_thermal_homography.json`) and authored dual-band calibration procedure guide (`docs/CALIBRATION.md`).
+     - Implemented `CrossModalRegistrar` using homography perspective warping between thermal and RGB coordinate frames.
+     - Implemented `SensorFusionEngine`: associates warped detections by IoU, boosts confidence when both sensors agree, sets `modalities: ["rgb", "thermal"]`, and preserves valid thermal-only detections (e.g. survivors obscured in visible foliage).
+  5. **Backpressure & Bounded Queues (`inference-service/app/pipeline/queue.py`):**
+     - Implemented `BoundedFrameQueue` with drop-oldest eviction policy and frame deadline enforcement to prevent memory blowup and lag under edge load.
+  6. **Stage Instrumentation & Health Degradation (`inference-service/app/pipeline/metrics.py` & `app/main.py`):**
+     - Exposes Prometheus metrics at `/metrics`: `inference_stage_latency_seconds` histogram (decode, preprocess, inference, postprocess, publish), `inference_frames_processed_total`, `inference_frames_dropped_total`, and `inference_fps`.
+     - `/health` inspects model integrity on disk; reports `"degraded"` status and halts fake detections if any model file is missing or corrupted.
+  7. **Contracts & Downstream Integration:**
+     - Updated `shared/jsonschema/detection.schema.json` and `shared/proto/detection.proto` with `track_id`, `modalities`, `model_version`, and `timings_ms`.
+     - Regenerated Python, TypeScript, and Go contracts via `shared/generate_contracts.py`.
+     - Updated `fusion-service` with database migration `000004_tracking.up.sql` (`track_id`, `modalities`), SQLite local queue persistence, and WebSocket broadcasting.
+     - Updated `dashboard` UI (`Detections.tsx`, `DetailPanel.tsx`, `types.ts`) to display track IDs.
+  8. **Testing & Acceptance Verification:**
+     - Added unit tests: `test_tracker.py`, `test_fusion.py`, `test_tiling.py`, `test_health_and_metrics.py`.
+     - `make test` passes (Go tests, TS contract tests, Python contract & inference tests [17 passed], simulator tests [16 passed]).
+     - `make demo SCENARIO=flood` executed to completion; verified stable `track_id` (e.g. `track_003` for person) and `modalities: ["rgb", "thermal"]` on the command-centre dashboard and `/detections` REST endpoint.
+     - Verified `/health` reports degraded when a model is missing and `/metrics` exports real latency histograms and frame counters.
+- **Known Gaps / Next Steps:**
+  - Mission-service and ArduPilot SITL coverage planning (Prompt 5).
   - Automated benchmark evaluation runner (`make evaluate` -> `docs/RESULTS.md`).
