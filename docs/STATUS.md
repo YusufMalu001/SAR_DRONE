@@ -120,7 +120,47 @@
        - `make fetch-assets` passes and confirms all SHA256 hashes match.
        - `docs/CAPABILITIES.md` published and verified.
 - **Known Gaps / Next Steps:**
-  - Mission-service and ArduPilot SITL coverage planning (Prompt 5).
+  - Mission-service and ArduPilot SITL coverage planning (Prompt 6).
+  - Automated benchmark evaluation runner (`make evaluate` -> `docs/RESULTS.md`).
+
+## Prompt 5 — Fusion Service v2: Accurate Geotagging, Scoring, Alerts
+- **Date:** 2026-11-24
+- **Milestone:** Comprehensive fusion service v2 with bracketed telemetry interpolation, full 3D camera ray-casting geo-projection, track/cross-pass geo-clustering into Survivor and Hazard entities, documented axiomatic priority scoring formula, stateful alert lifecycle with hysteresis, cooldown, and escalation, PostGIS spatial persistence, and versioned REST/WebSocket APIs with OpenAPI 3.0 specification.
+- **Tasks & Changes Completed:**
+  1. **Telemetry Association & Interpolation (`fusion-service/internal/telemetry/buffer.go`):**
+     - Updated telemetry schema with optional pitch, roll, and yaw angles.
+     - Implemented `Interpolate(t, maxGap, skewTolerance)` finding exact bracketing samples, applying linear interpolation for position/altitude/attitude and shortest-arc circular interpolation for heading/yaw across 0/360° boundaries.
+     - Added explicit detection and handling for telemetry stream gaps (`ErrTelemetryGap`) and clock skew (`ErrClockSkew`).
+  2. **Full 3D Camera Ray-Casting Geo-Projection (`fusion-service/internal/geo/geo.go`):**
+     - Implemented full camera model with intrinsics (HFOV/VFOV), mounting pitch/roll/yaw, and drone attitude (roll, pitch, heading/yaw).
+     - Implemented `GroundContactPoint(bbox, class)` casting bottom-center for 3D upright persons and center for planar hazards onto the ground plane ($Z_{\text{ned}} = 0$).
+     - Validated hand-computed geometries (nadir, forward displacement, oblique mounting pitch, rotated heading) and property invariants (altitude proportionality, heading rotation invariance, translation invariance) in `internal/geo/geo_test.go`.
+  3. **Geo-Clustering & Survivor/Hazard Entities (`fusion-service/internal/entity/cluster.go`):**
+     - Implemented `Clusterer` merging incoming detections by continuous `track_id` and clustering across flight passes within spatial thresholds (5m for survivors, 35m for hazards).
+     - Protects concurrent distinct tracks from erroneous merging.
+     - Maintains running position estimates (recursive weighted average) and running uncertainty radii that shrink with repeated observations.
+  4. **Documented Priority Scoring Formula (`docs/PRIORITY.md` & `fusion-service/internal/priority/priority.go`):**
+     - Authored [`docs/PRIORITY.md`](file:///home/yusuf/Desktop/SAR_DRONE/docs/PRIORITY.md) specifying the scoring formula: $S = \min\left(1.0, W_{\text{class}} \cdot C + M + P + H_{\text{prox}}\right)$.
+     - Implemented in `priority.go` with class severity weights, confidence, multi-modal boost (+0.10 for RGB + Thermal), persistence bump, and distance-decaying hazard proximity boost (fire: +0.25, flood: +0.20, structural damage: +0.15, debris: +0.10).
+     - Verified all 6 axiomatic ordering invariants in `internal/priority/priority_test.go`.
+  5. **Stateful Alert Lifecycle with Hysteresis & Cooldown (`fusion-service/internal/alerting/manager.go`):**
+     - Implemented `Manager` enforcing trigger threshold ($S \ge 0.70$), clear threshold ($S < 0.60$), and hysteresis deadband $[0.60, 0.70)$ to prevent flapping.
+     - Enforces 10-second notification cooldowns for identical tiers while immediately escalating to higher tiers (e.g. Medium/High -> Critical) upon score jumps.
+     - Supports explicit alert and entity resolution via REST API and entity rescue events.
+  6. **PostGIS Migrations & Persistence (`000005_entities_and_hazards.up.sql` & `internal/db/`):**
+     - Created `entities` table with PostGIS geometry points, uncertainty radii, track lists, and observation counters.
+     - Created `hazard_polygons` table generating PostGIS convex hulls and buffered polygons (`ST_Buffer(ST_ConvexHull(...))`) around clustered hazard detections.
+     - Updated `alerts` table to track entity associations, priority scores, and lifecycle statuses (`active`, `escalated`, `resolved`).
+  7. **APIs & OpenAPI 3.0 Specification:**
+     - Exposes REST endpoints: `GET /entities`, `GET /entities/{id}`, `POST /entities/{id}/resolve`, `GET /alerts`, `GET /alerts/{id}`, `POST /alerts/{id}/resolve`, `GET /hazards/geojson` (GeoJSON FeatureCollection), `GET /openapi.json`.
+     - Exposes versioned WebSocket updates (`/ws/live`) with envelope `{"version": "v2", "type": "...", "payload": ...}`.
+     - Authored and checked in OpenAPI 3.0 specification at [`docs/openapi.json`](file:///home/yusuf/Desktop/SAR_DRONE/docs/openapi.json).
+  8. **Testing & Acceptance Verification:**
+     - Unit tests pass: `buffer_test.go`, `geo_test.go`, `cluster_test.go`, `priority_test.go`, `manager_test.go`.
+     - `make test` green across all suites (Go, TS, Contracts, Python, Simulator).
+     - Ran `make demo SCENARIO=flood`: yielded exactly 2 unique survivor entities matching the 2 ground-truth survivors (`survivor_rooftop_1` and `survivor_rooftop_2`) in `scenarios/flood.yaml`.
+- **Known Gaps / Next Steps:**
+  - Mission-service and ArduPilot SITL coverage planning (Prompt 6).
   - Automated benchmark evaluation runner (`make evaluate` -> `docs/RESULTS.md`).
 
 ## Prompt 4 — Inference Service v2: Multi-Sensor, Tracking, Edge-Ready
@@ -159,5 +199,45 @@
      - `make demo SCENARIO=flood` executed to completion; verified stable `track_id` (e.g. `track_003` for person) and `modalities: ["rgb", "thermal"]` on the command-centre dashboard and `/detections` REST endpoint.
      - Verified `/health` reports degraded when a model is missing and `/metrics` exports real latency histograms and frame counters.
 - **Known Gaps / Next Steps:**
-  - Mission-service and ArduPilot SITL coverage planning (Prompt 5).
+  - Mission-service and ArduPilot SITL coverage planning (Prompt 6).
+  - Automated benchmark evaluation runner (`make evaluate` -> `docs/RESULTS.md`).
+
+## Prompt 5 — Fusion Service v2: Accurate Geotagging, Scoring, Alerts
+- **Date:** 2026-11-24
+- **Milestone:** Comprehensive fusion service v2 with bracketed telemetry interpolation, full 3D camera ray-casting geo-projection, track/cross-pass geo-clustering into Survivor and Hazard entities, documented axiomatic priority scoring formula, stateful alert lifecycle with hysteresis, cooldown, and escalation, PostGIS spatial persistence, and versioned REST/WebSocket APIs with OpenAPI 3.0 specification.
+- **Tasks & Changes Completed:**
+  1. **Telemetry Association & Interpolation (`fusion-service/internal/telemetry/buffer.go`):**
+     - Updated telemetry schema with optional pitch, roll, and yaw angles.
+     - Implemented `Interpolate(t, maxGap, skewTolerance)` finding exact bracketing samples, applying linear interpolation for position/altitude/attitude and shortest-arc circular interpolation for heading/yaw across 0/360° boundaries.
+     - Added explicit detection and handling for telemetry stream gaps (`ErrTelemetryGap`) and clock skew (`ErrClockSkew`).
+  2. **Full 3D Camera Ray-Casting Geo-Projection (`fusion-service/internal/geo/geo.go`):**
+     - Implemented full camera model with intrinsics (HFOV/VFOV), mounting pitch/roll/yaw, and drone attitude (roll, pitch, heading/yaw).
+     - Implemented `GroundContactPoint(bbox, class)` casting bottom-center for 3D upright persons and center for planar hazards onto the ground plane ($Z_{\text{ned}} = 0$).
+     - Validated hand-computed geometries (nadir, forward displacement, oblique mounting pitch, rotated heading) and property invariants (altitude proportionality, heading rotation invariance, translation invariance) in `internal/geo/geo_test.go`.
+  3. **Geo-Clustering & Survivor/Hazard Entities (`fusion-service/internal/entity/cluster.go`):**
+     - Implemented `Clusterer` merging incoming detections by continuous `track_id` and clustering across flight passes within spatial thresholds (5m for survivors, 35m for hazards).
+     - Protects concurrent distinct tracks from erroneous merging.
+     - Maintains running position estimates (recursive weighted average) and running uncertainty radii that shrink with repeated observations.
+  4. **Documented Priority Scoring Formula (`docs/PRIORITY.md` & `fusion-service/internal/priority/priority.go`):**
+     - Authored [`docs/PRIORITY.md`](file:///home/yusuf/Desktop/SAR_DRONE/docs/PRIORITY.md) specifying the scoring formula: $S = \min\left(1.0, W_{\text{class}} \cdot C + M + P + H_{\text{prox}}\right)$.
+     - Implemented in `priority.go` with class severity weights, confidence, multi-modal boost (+0.10 for RGB + Thermal), persistence bump, and distance-decaying hazard proximity boost (fire: +0.25, flood: +0.20, structural damage: +0.15, debris: +0.10).
+     - Verified all 6 axiomatic ordering invariants in `internal/priority/priority_test.go`.
+  5. **Stateful Alert Lifecycle with Hysteresis & Cooldown (`fusion-service/internal/alerting/manager.go`):**
+     - Implemented `Manager` enforcing trigger threshold ($S \ge 0.70$), clear threshold ($S < 0.60$), and hysteresis deadband $[0.60, 0.70)$ to prevent flapping.
+     - Enforces 10-second notification cooldowns for identical tiers while immediately escalating to higher tiers (e.g. Medium/High -> Critical) upon score jumps.
+     - Supports explicit alert and entity resolution via REST API and entity rescue events.
+  6. **PostGIS Migrations & Persistence (`000005_entities_and_hazards.up.sql` & `internal/db/`):**
+     - Created `entities` table with PostGIS geometry points, uncertainty radii, track lists, and observation counters.
+     - Created `hazard_polygons` table generating PostGIS convex hulls and buffered polygons (`ST_Buffer(ST_ConvexHull(...))`) around clustered hazard detections.
+     - Updated `alerts` table to track entity associations, priority scores, and lifecycle statuses (`active`, `escalated`, `resolved`).
+  7. **APIs & OpenAPI 3.0 Specification:**
+     - Exposes REST endpoints: `GET /entities`, `GET /entities/{id}`, `POST /entities/{id}/resolve`, `GET /alerts`, `GET /alerts/{id}`, `POST /alerts/{id}/resolve`, `GET /hazards/geojson` (GeoJSON FeatureCollection), `GET /openapi.json`.
+     - Exposes versioned WebSocket updates (`/ws/live`) with envelope `{"version": "v2", "type": "...", "payload": ...}`.
+     - Authored and checked in OpenAPI 3.0 specification at [`docs/openapi.json`](file:///home/yusuf/Desktop/SAR_DRONE/docs/openapi.json).
+  8. **Testing & Acceptance Verification:**
+     - Unit tests pass: `buffer_test.go`, `geo_test.go`, `cluster_test.go`, `priority_test.go`, `manager_test.go`.
+     - `make test` green across all suites (Go, TS, Contracts, Python, Simulator).
+     - Ran `make demo SCENARIO=flood`: yielded exactly 2 unique survivor entities matching the 2 ground-truth survivors (`survivor_rooftop_1` and `survivor_rooftop_2`) in `scenarios/flood.yaml`.
+- **Known Gaps / Next Steps:**
+  - Mission-service and ArduPilot SITL coverage planning (Prompt 6).
   - Automated benchmark evaluation runner (`make evaluate` -> `docs/RESULTS.md`).
