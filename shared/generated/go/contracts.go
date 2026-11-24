@@ -119,3 +119,119 @@ func (t *Telemetry) Validate() error {
 	}
 	return nil
 }
+
+type HazardZoneProperties struct {
+	ID             string  `json:"id"`
+	Class          string  `json:"class"`
+	Severity       string  `json:"severity"`
+	BufferMeters   float64 `json:"buffer_meters"`
+	AreaSqM        float64 `json:"area_sq_m"`
+	DetectionCount int     `json:"detection_count"`
+	FeatureType    string  `json:"feature_type,omitempty"`
+}
+
+type HazardZoneFeature struct {
+	Type       string                 `json:"type"`
+	ID         string                 `json:"id"`
+	Geometry   map[string]interface{} `json:"geometry"`
+	Properties HazardZoneProperties   `json:"properties"`
+}
+
+type HazardZonesGeoJSON struct {
+	Type     string              `json:"type"`
+	Features []HazardZoneFeature `json:"features"`
+}
+
+func (h *HazardZonesGeoJSON) Validate() error {
+	if h.Type != "FeatureCollection" {
+		return fmt.Errorf("invalid type %q", h.Type)
+	}
+	for _, f := range h.Features {
+		if f.Type != "Feature" {
+			return fmt.Errorf("invalid feature type %q", f.Type)
+		}
+		if f.Properties.ID == "" {
+			return fmt.Errorf("hazard zone ID is required")
+		}
+		if f.Properties.BufferMeters < 0 {
+			return fmt.Errorf("buffer meters must be >= 0")
+		}
+	}
+	return nil
+}
+
+type SafeRouteProperties struct {
+	RouteID            string     `json:"route_id"`
+	Safe               bool       `json:"safe"`
+	Reason             *string    `json:"reason,omitempty"`
+	LengthMeters       float64    `json:"length_meters"`
+	RiskScore          float64    `json:"risk_score"`
+	AvoidedHazards     []string   `json:"avoided_hazards"`
+	IntersectedHazards []string   `json:"intersected_hazards"`
+	Start              [2]float64 `json:"start"`
+	Destination        [2]float64 `json:"destination"`
+}
+
+type SafeRouteFeature struct {
+	Type       string                 `json:"type"`
+	Geometry   map[string]interface{} `json:"geometry"`
+	Properties SafeRouteProperties    `json:"properties"`
+}
+
+type SafeRouteGeoJSON struct {
+	Type     string             `json:"type"`
+	Features []SafeRouteFeature `json:"features"`
+}
+
+func (r *SafeRouteGeoJSON) Validate() error {
+	if r.Type != "FeatureCollection" {
+		return fmt.Errorf("invalid type %q", r.Type)
+	}
+	for _, f := range r.Features {
+		if f.Type != "Feature" {
+			return fmt.Errorf("invalid feature type %q", f.Type)
+		}
+		if f.Properties.LengthMeters < 0 {
+			return fmt.Errorf("length meters must be >= 0")
+		}
+	}
+	return nil
+}
+
+type CoverageCellProperties struct {
+	CellID           string   `json:"cell_id"`
+	ObservationCount int      `json:"observation_count"`
+	LastObservedAt   *string  `json:"last_observed_at,omitempty"`
+	BestConfidence   float64  `json:"best_confidence"`
+	Searched         bool     `json:"searched"`
+	StalenessSeconds *float64 `json:"staleness_seconds,omitempty"`
+}
+
+type CoverageCellFeature struct {
+	Type       string                 `json:"type"`
+	Geometry   map[string]interface{} `json:"geometry"`
+	Properties CoverageCellProperties `json:"properties"`
+}
+
+type CoverageGeoJSON struct {
+	Type     string                `json:"type"`
+	Features []CoverageCellFeature `json:"features"`
+}
+
+func (c *CoverageGeoJSON) Validate() error {
+	if c.Type != "FeatureCollection" {
+		return fmt.Errorf("invalid type %q", c.Type)
+	}
+	for _, f := range c.Features {
+		if f.Type != "Feature" {
+			return fmt.Errorf("invalid feature type %q", f.Type)
+		}
+		if f.Properties.CellID == "" {
+			return fmt.Errorf("cell ID is required")
+		}
+		if f.Properties.BestConfidence < 0 || f.Properties.BestConfidence > 1 {
+			return fmt.Errorf("best confidence out of range [0, 1]")
+		}
+	}
+	return nil
+}

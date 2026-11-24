@@ -86,4 +86,122 @@ function validateTelemetry(t) {
 
 validateDetection(detection);
 validateTelemetry(telemetry);
+
+// Validate Hazard Zones GeoJSON
+const hazardZoneSchema = JSON.parse(readFileSync(join(__dirname, '../jsonschema/hazard_zone.schema.json'), 'utf8'));
+const sampleHazardZones = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      id: "hazard_zone_fire",
+      geometry: {
+        type: "Polygon",
+        coordinates: [[[78.001, 20.001], [78.003, 20.001], [78.003, 20.003], [78.001, 20.003], [78.001, 20.001]]]
+      },
+      properties: {
+        id: "hazard_zone_fire",
+        class: "fire",
+        severity: "critical",
+        buffer_meters: 50.0,
+        area_sq_m: 12500.0,
+        detection_count: 5,
+        feature_type: "polygon"
+      }
+    }
+  ]
+};
+
+function validateHazardZones(hz) {
+  if (hz.type !== 'FeatureCollection') throw new Error('invalid FeatureCollection type');
+  if (!Array.isArray(hz.features)) throw new Error('missing features array');
+  for (const f of hz.features) {
+    if (f.type !== 'Feature') throw new Error('invalid feature type');
+    if (!f.geometry || !['Polygon', 'MultiPolygon', 'Point'].includes(f.geometry.type)) throw new Error('invalid geometry');
+    const p = f.properties;
+    if (!p.id || !hazardZoneSchema.properties.features.items.properties.properties.properties.class.enum.includes(p.class)) {
+      throw new Error('invalid class: ' + p.class);
+    }
+    if (!['critical', 'high', 'medium', 'low'].includes(p.severity)) throw new Error('invalid severity');
+    if (typeof p.buffer_meters !== 'number' || p.buffer_meters < 0) throw new Error('invalid buffer_meters');
+  }
+}
+validateHazardZones(sampleHazardZones);
+
+// Validate Safe Route GeoJSON
+const safeRouteSchema = JSON.parse(readFileSync(join(__dirname, '../jsonschema/safe_route.schema.json'), 'utf8'));
+const sampleSafeRoute = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: [[78.000, 20.000], [78.0005, 20.0015], [78.002, 20.004]]
+      },
+      properties: {
+        route_id: "route_survivor_1",
+        safe: true,
+        reason: null,
+        length_meters: 450.5,
+        risk_score: 0.0,
+        avoided_hazards: ["hazard_zone_fire"],
+        intersected_hazards: [],
+        start: [78.000, 20.000],
+        destination: [78.002, 20.004]
+      }
+    }
+  ]
+};
+
+function validateSafeRoute(sr) {
+  if (sr.type !== 'FeatureCollection') throw new Error('invalid FeatureCollection type');
+  for (const f of sr.features) {
+    if (f.type !== 'Feature') throw new Error('invalid feature type');
+    if (!f.geometry || f.geometry.type !== 'LineString') throw new Error('invalid route geometry');
+    const p = f.properties;
+    if (typeof p.safe !== 'boolean') throw new Error('missing safe flag');
+    if (typeof p.length_meters !== 'number' || p.length_meters < 0) throw new Error('invalid length_meters');
+    if (!Array.isArray(p.avoided_hazards) || !Array.isArray(p.intersected_hazards)) throw new Error('invalid hazard lists');
+  }
+}
+validateSafeRoute(sampleSafeRoute);
+
+// Validate Coverage GeoJSON
+const coverageSchema = JSON.parse(readFileSync(join(__dirname, '../jsonschema/coverage.schema.json'), 'utf8'));
+const sampleCoverage = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      geometry: {
+        type: "Polygon",
+        coordinates: [[[78.000, 20.000], [78.001, 20.000], [78.001, 20.001], [78.000, 20.001], [78.000, 20.000]]]
+      },
+      properties: {
+        cell_id: "cell_0_0",
+        observation_count: 3,
+        last_observed_at: new Date().toISOString(),
+        best_confidence: 0.92,
+        searched: true,
+        staleness_seconds: 15.2
+      }
+    }
+  ]
+};
+
+function validateCoverage(c) {
+  if (c.type !== 'FeatureCollection') throw new Error('invalid FeatureCollection type');
+  for (const f of c.features) {
+    if (f.type !== 'Feature') throw new Error('invalid feature type');
+    if (!f.geometry || f.geometry.type !== 'Polygon') throw new Error('invalid coverage geometry');
+    const p = f.properties;
+    if (typeof p.cell_id !== 'string') throw new Error('invalid cell_id');
+    if (typeof p.observation_count !== 'number' || p.observation_count < 0) throw new Error('invalid count');
+    if (typeof p.best_confidence !== 'number' || p.best_confidence < 0 || p.best_confidence > 1) throw new Error('invalid confidence');
+    if (typeof p.searched !== 'boolean') throw new Error('invalid searched flag');
+  }
+}
+validateCoverage(sampleCoverage);
+
 console.log('Contract validation passed: Python -> TS validated successfully.');

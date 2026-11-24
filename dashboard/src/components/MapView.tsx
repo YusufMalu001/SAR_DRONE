@@ -47,8 +47,10 @@ export default function MapView({
       zoom: 14,
       preferCanvas: true,
     });
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
+    const fusionUrl = import.meta.env.VITE_FUSION_URL || "http://localhost:8002";
+    const tileUrl = `${fusionUrl}/tiles/{z}/{x}/{y}.png`;
+    L.tileLayer(tileUrl, {
+      attribution: "&copy; Khoj-o-Drone Offline Map / OpenStreetMap contributors",
       maxZoom: 19,
     }).addTo(map);
 

@@ -19,7 +19,7 @@ for d in (GEN_PY, GEN_GO, GEN_TS):
 def gen_python():
     code = '''"""Generated from shared/jsonschema — DO NOT EDIT MANUALLY."""
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -79,6 +79,73 @@ class Telemetry(BaseModel):
     timestamp: str
 
     model_config = {"populate_by_name": True, "protected_namespaces": ()}
+
+
+class HazardZoneProperties(BaseModel):
+    id: str
+    class_: str = Field(alias="class")
+    severity: str
+    buffer_meters: float = Field(ge=0.0)
+    area_sq_m: float = Field(ge=0.0)
+    detection_count: int = Field(ge=0)
+    feature_type: Optional[str] = None
+
+    model_config = {"populate_by_name": True, "protected_namespaces": ()}
+
+
+class HazardZoneFeature(BaseModel):
+    type: str = "Feature"
+    id: str
+    geometry: Dict[str, Any]
+    properties: HazardZoneProperties
+
+
+class HazardZonesGeoJSON(BaseModel):
+    type: str = "FeatureCollection"
+    features: List[HazardZoneFeature]
+
+
+class SafeRouteProperties(BaseModel):
+    route_id: str
+    safe: bool
+    reason: Optional[str] = None
+    length_meters: float = Field(ge=0.0)
+    risk_score: float = Field(ge=0.0)
+    avoided_hazards: List[str]
+    intersected_hazards: List[str]
+    start: List[float]
+    destination: List[float]
+
+
+class SafeRouteFeature(BaseModel):
+    type: str = "Feature"
+    geometry: Dict[str, Any]
+    properties: SafeRouteProperties
+
+
+class SafeRouteGeoJSON(BaseModel):
+    type: str = "FeatureCollection"
+    features: List[SafeRouteFeature]
+
+
+class CoverageCellProperties(BaseModel):
+    cell_id: str
+    observation_count: int = Field(ge=0)
+    last_observed_at: Optional[str] = None
+    best_confidence: float = Field(ge=0.0, le=1.0)
+    searched: bool
+    staleness_seconds: Optional[float] = None
+
+
+class CoverageCellFeature(BaseModel):
+    type: str = "Feature"
+    geometry: Dict[str, Any]
+    properties: CoverageCellProperties
+
+
+class CoverageGeoJSON(BaseModel):
+    type: str = "FeatureCollection"
+    features: List[CoverageCellFeature]
 '''
     (GEN_PY / "contracts.py").write_text(code)
     (GEN_PY / "__init__.py").write_text("from .contracts import *\n")
@@ -135,6 +202,82 @@ export interface Telemetry {
   roll?: number;
   yaw?: number;
   timestamp: string;
+}
+
+export type HazardSeverity = "critical" | "high" | "medium" | "low";
+
+export interface HazardZoneProperties {
+  id: string;
+  class: string;
+  severity: HazardSeverity;
+  buffer_meters: number;
+  area_sq_m: number;
+  detection_count: number;
+  feature_type?: string;
+}
+
+export interface HazardZoneFeature {
+  type: "Feature";
+  id: string;
+  geometry: {
+    type: "Polygon" | "MultiPolygon" | "Point";
+    coordinates: any;
+  };
+  properties: HazardZoneProperties;
+}
+
+export interface HazardZonesGeoJSON {
+  type: "FeatureCollection";
+  features: HazardZoneFeature[];
+}
+
+export interface SafeRouteProperties {
+  route_id: string;
+  safe: boolean;
+  reason?: string | null;
+  length_meters: number;
+  risk_score: number;
+  avoided_hazards: string[];
+  intersected_hazards: string[];
+  start: [number, number];
+  destination: [number, number];
+}
+
+export interface SafeRouteFeature {
+  type: "Feature";
+  geometry: {
+    type: "LineString";
+    coordinates: [number, number][];
+  };
+  properties: SafeRouteProperties;
+}
+
+export interface SafeRouteGeoJSON {
+  type: "FeatureCollection";
+  features: SafeRouteFeature[];
+}
+
+export interface CoverageCellProperties {
+  cell_id: string;
+  observation_count: number;
+  last_observed_at?: string | null;
+  best_confidence: number;
+  searched: boolean;
+  staleness_seconds?: number | null;
+}
+
+export interface CoverageCellFeature {
+  type: "Feature";
+  geometry: {
+    type: "Polygon";
+    coordinates: number[][][];
+  };
+  properties: CoverageCellProperties;
+}
+
+export interface CoverageGeoJSON {
+  type: "FeatureCollection";
+  features: CoverageCellFeature[];
 }
 '''
     (GEN_TS / "contracts.ts").write_text(code)
@@ -282,6 +425,122 @@ func (t *Telemetry) Validate() error {{
 \tif _, err := time.Parse(time.RFC3339, t.Timestamp); err != nil {{
 \t\tif _, err := time.Parse(time.RFC3339Nano, t.Timestamp); err != nil {{
 \t\t\treturn fmt.Errorf("timestamp is not valid RFC3339: %w", err)
+\t\t}}
+\t}}
+\treturn nil
+}}
+
+type HazardZoneProperties struct {{
+\tID             string  `json:"id"`
+\tClass          string  `json:"class"`
+\tSeverity       string  `json:"severity"`
+\tBufferMeters   float64 `json:"buffer_meters"`
+\tAreaSqM        float64 `json:"area_sq_m"`
+\tDetectionCount int     `json:"detection_count"`
+\tFeatureType    string  `json:"feature_type,omitempty"`
+}}
+
+type HazardZoneFeature struct {{
+\tType       string                 `json:"type"`
+\tID         string                 `json:"id"`
+\tGeometry   map[string]interface{{}} `json:"geometry"`
+\tProperties HazardZoneProperties   `json:"properties"`
+}}
+
+type HazardZonesGeoJSON struct {{
+\tType     string              `json:"type"`
+\tFeatures []HazardZoneFeature `json:"features"`
+}}
+
+func (h *HazardZonesGeoJSON) Validate() error {{
+\tif h.Type != "FeatureCollection" {{
+\t\treturn fmt.Errorf("invalid type %q", h.Type)
+\t}}
+\tfor _, f := range h.Features {{
+\t\tif f.Type != "Feature" {{
+\t\t\treturn fmt.Errorf("invalid feature type %q", f.Type)
+\t\t}}
+\t\tif f.Properties.ID == "" {{
+\t\t\treturn fmt.Errorf("hazard zone ID is required")
+\t\t}}
+\t\tif f.Properties.BufferMeters < 0 {{
+\t\t\treturn fmt.Errorf("buffer meters must be >= 0")
+\t\t}}
+\t}}
+\treturn nil
+}}
+
+type SafeRouteProperties struct {{
+\tRouteID            string     `json:"route_id"`
+\tSafe               bool       `json:"safe"`
+\tReason             *string    `json:"reason,omitempty"`
+\tLengthMeters       float64    `json:"length_meters"`
+\tRiskScore          float64    `json:"risk_score"`
+\tAvoidedHazards     []string   `json:"avoided_hazards"`
+\tIntersectedHazards []string   `json:"intersected_hazards"`
+\tStart              [2]float64 `json:"start"`
+\tDestination        [2]float64 `json:"destination"`
+}}
+
+type SafeRouteFeature struct {{
+\tType       string                 `json:"type"`
+\tGeometry   map[string]interface{{}} `json:"geometry"`
+\tProperties SafeRouteProperties    `json:"properties"`
+}}
+
+type SafeRouteGeoJSON struct {{
+\tType     string             `json:"type"`
+\tFeatures []SafeRouteFeature `json:"features"`
+}}
+
+func (r *SafeRouteGeoJSON) Validate() error {{
+\tif r.Type != "FeatureCollection" {{
+\t\treturn fmt.Errorf("invalid type %q", r.Type)
+\t}}
+\tfor _, f := range r.Features {{
+\t\tif f.Type != "Feature" {{
+\t\t\treturn fmt.Errorf("invalid feature type %q", f.Type)
+\t\t}}
+\t\tif f.Properties.LengthMeters < 0 {{
+\t\t\treturn fmt.Errorf("length meters must be >= 0")
+\t\t}}
+\t}}
+\treturn nil
+}}
+
+type CoverageCellProperties struct {{
+\tCellID           string   `json:"cell_id"`
+\tObservationCount int      `json:"observation_count"`
+\tLastObservedAt   *string  `json:"last_observed_at,omitempty"`
+\tBestConfidence   float64  `json:"best_confidence"`
+\tSearched         bool     `json:"searched"`
+\tStalenessSeconds *float64 `json:"staleness_seconds,omitempty"`
+}}
+
+type CoverageCellFeature struct {{
+\tType       string                 `json:"type"`
+\tGeometry   map[string]interface{{}} `json:"geometry"`
+\tProperties CoverageCellProperties `json:"properties"`
+}}
+
+type CoverageGeoJSON struct {{
+\tType     string                `json:"type"`
+\tFeatures []CoverageCellFeature `json:"features"`
+}}
+
+func (c *CoverageGeoJSON) Validate() error {{
+\tif c.Type != "FeatureCollection" {{
+\t\treturn fmt.Errorf("invalid type %q", c.Type)
+\t}}
+\tfor _, f := range c.Features {{
+\t\tif f.Type != "Feature" {{
+\t\t\treturn fmt.Errorf("invalid feature type %q", f.Type)
+\t\t}}
+\t\tif f.Properties.CellID == "" {{
+\t\t\treturn fmt.Errorf("cell ID is required")
+\t\t}}
+\t\tif f.Properties.BestConfidence < 0 || f.Properties.BestConfidence > 1 {{
+\t\t\treturn fmt.Errorf("best confidence out of range [0, 1]")
 \t\t}}
 \t}}
 \treturn nil

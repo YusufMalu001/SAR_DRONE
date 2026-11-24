@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SafeRouteGeoJSON",
+  "description": "GeoJSON FeatureCollection representing safe access/evacuation routes avoiding hazards",
+  "type": "object",
+  "required": ["type", "features"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["FeatureCollection"]
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "geometry", "properties"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["Feature"]
+          },
+          "geometry": {
+            "type": "object",
+            "required": ["type", "coordinates"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["LineString"]
+              },
+              "coordinates": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": { "type": "number" },
+                  "minItems": 2,
+                  "maxItems": 3
+                }
+              }
+            }
+          },
+          "properties": {
+            "type": "object",
+            "required": ["route_id", "safe", "length_meters", "risk_score", "avoided_hazards", "intersected_hazards", "start", "destination"],
+            "properties": {
+              "route_id": { "type": "string" },
+              "safe": { "type": "boolean" },
+              "reason": { "type": ["string", "null"] },
+              "length_meters": { "type": "number", "minimum": 0 },
+              "risk_score": { "type": "number", "minimum": 0 },
+              "avoided_hazards": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "intersected_hazards": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "start": {
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "destination": {
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -16,6 +16,7 @@ import (
 	"sar-drone-prototype/fusion-service/internal/alerting"
 	"sar-drone-prototype/fusion-service/internal/config"
 	"sar-drone-prototype/fusion-service/internal/connectivity"
+	"sar-drone-prototype/fusion-service/internal/coverage"
 	"sar-drone-prototype/fusion-service/internal/db"
 	"sar-drone-prototype/fusion-service/internal/entity"
 	"sar-drone-prototype/fusion-service/internal/fusion"
@@ -116,14 +117,15 @@ func newHarness(t *testing.T) *harness {
 	hazards := priority.NewHazardTracker(time.Duration(cfg.HazardWindowSeconds)*time.Second, cfg.HazardProximityMeters)
 	clusterer := entity.NewClusterer(entity.DefaultClusterConfig())
 	alertMgr := alerting.NewManager(alerting.DefaultConfig())
-	consumer := fusion.NewConsumer(redisClient, pool, hub, telemetryBuf, hazards, clusterer, alertMgr, queue, monitor, cfg)
+	covGrid := coverage.NewGrid(18.0, 72.0, 29.0, 79.0, 20.0)
+	consumer := fusion.NewConsumer(redisClient, pool, hub, telemetryBuf, hazards, clusterer, alertMgr, covGrid, queue, monitor, cfg)
 
 	runCtx, stopRun := context.WithCancel(context.Background())
 	go monitor.Run(runCtx, fastTestInterval)
 	go func() { _ = consumer.Run(runCtx) }()
 	go consumer.RunDrainLoop(runCtx, fastTestInterval)
 
-	httpServer := httptest.NewServer(server.NewMux(pool, redisClient, hub, queue, monitor, clusterer, alertMgr, cfg))
+	httpServer := httptest.NewServer(server.NewMux(pool, redisClient, hub, queue, monitor, clusterer, alertMgr, covGrid, cfg))
 
 	t.Cleanup(func() {
 		httpServer.Close()

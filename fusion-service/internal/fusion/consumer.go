@@ -21,6 +21,7 @@ import (
 	"sar-drone-prototype/fusion-service/internal/alerting"
 	"sar-drone-prototype/fusion-service/internal/config"
 	"sar-drone-prototype/fusion-service/internal/connectivity"
+	"sar-drone-prototype/fusion-service/internal/coverage"
 	"sar-drone-prototype/fusion-service/internal/db"
 	"sar-drone-prototype/fusion-service/internal/dto"
 	"sar-drone-prototype/fusion-service/internal/entity"
@@ -48,6 +49,7 @@ type Consumer struct {
 	hazards      *priority.HazardTracker
 	clusterer    *entity.Clusterer
 	alertMgr     *alerting.Manager
+	coverageGrid *coverage.Grid
 	queue        *localqueue.Queue
 	connectivity *connectivity.Monitor
 	cfg          config.Config
@@ -61,6 +63,7 @@ func NewConsumer(
 	hazards *priority.HazardTracker,
 	clusterer *entity.Clusterer,
 	alertMgr *alerting.Manager,
+	covGrid *coverage.Grid,
 	queue *localqueue.Queue,
 	monitor *connectivity.Monitor,
 	cfg config.Config,
@@ -73,6 +76,7 @@ func NewConsumer(
 		hazards:      hazards,
 		clusterer:    clusterer,
 		alertMgr:     alertMgr,
+		coverageGrid: covGrid,
 		queue:        queue,
 		connectivity: monitor,
 		cfg:          cfg,
@@ -168,6 +172,10 @@ func (c *Consumer) handleTelemetry(ctx context.Context, raw string) {
 		Yaw:     t.Heading,
 		At:      at,
 	})
+
+	if c.coverageGrid != nil {
+		c.coverageGrid.RecordTelemetry(t.Lat, t.Lon, t.Alt, c.cfg.CameraHFOVDeg, c.cfg.CameraVFOVDeg, at)
+	}
 
 	insertCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -296,6 +304,10 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 		slog.String("class", d.Class),
 		slog.Float64("priority_score", score),
 	)
+
+	if c.coverageGrid != nil {
+		c.coverageGrid.RecordDetection(fd.Lat, fd.Lon, d.Confidence)
+	}
 
 	// Offline write-ahead queue
 	if err := c.queue.Enqueue(ctx, fd); err != nil {

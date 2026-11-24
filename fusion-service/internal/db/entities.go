@@ -86,6 +86,11 @@ func GetEntity(ctx context.Context, pool *pgxpool.Pool, id string) (*EntityRow, 
 	return &e, nil
 }
 
+// ListActiveSurvivors returns all active survivor entities.
+func ListActiveSurvivors(ctx context.Context, pool *pgxpool.Pool) ([]EntityRow, error) {
+	return ListEntities(ctx, pool, "survivor", "active")
+}
+
 func ListEntities(ctx context.Context, pool *pgxpool.Pool, entityType, status string) ([]EntityRow, error) {
 	query := `SELECT ` + entityColumns + ` FROM entities WHERE 1=1`
 	var args []any

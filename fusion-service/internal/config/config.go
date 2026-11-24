@@ -54,6 +54,9 @@ type Config struct {
 	// Max number of recorded telemetry points GET /mission/route-status
 	// reconstructs the flight path from.
 	RouteStatusTelemetryLimit int
+
+	// Directory containing offline pre-cached raster tiles (/tiles/{z}/{x}/{y}.png).
+	TileDir string
 }
 
 func getenv(key, fallback string) string {
@@ -108,5 +111,6 @@ func Load() Config {
 
 		RouteObstructionMeters:    getenvFloat("ROUTE_OBSTRUCTION_METERS", 20.0),
 		RouteStatusTelemetryLimit: getenvInt("ROUTE_STATUS_TELEMETRY_LIMIT", 5000),
+		TileDir:                   getenv("TILE_DIR", "/data/tiles"),
 	}
 }

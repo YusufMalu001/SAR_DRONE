@@ -49,3 +49,79 @@ export interface Telemetry {
   yaw?: number;
   timestamp: string;
 }
+
+export type HazardSeverity = "critical" | "high" | "medium" | "low";
+
+export interface HazardZoneProperties {
+  id: string;
+  class: string;
+  severity: HazardSeverity;
+  buffer_meters: number;
+  area_sq_m: number;
+  detection_count: number;
+  feature_type?: string;
+}
+
+export interface HazardZoneFeature {
+  type: "Feature";
+  id: string;
+  geometry: {
+    type: "Polygon" | "MultiPolygon" | "Point";
+    coordinates: any;
+  };
+  properties: HazardZoneProperties;
+}
+
+export interface HazardZonesGeoJSON {
+  type: "FeatureCollection";
+  features: HazardZoneFeature[];
+}
+
+export interface SafeRouteProperties {
+  route_id: string;
+  safe: boolean;
+  reason?: string | null;
+  length_meters: number;
+  risk_score: number;
+  avoided_hazards: string[];
+  intersected_hazards: string[];
+  start: [number, number];
+  destination: [number, number];
+}
+
+export interface SafeRouteFeature {
+  type: "Feature";
+  geometry: {
+    type: "LineString";
+    coordinates: [number, number][];
+  };
+  properties: SafeRouteProperties;
+}
+
+export interface SafeRouteGeoJSON {
+  type: "FeatureCollection";
+  features: SafeRouteFeature[];
+}
+
+export interface CoverageCellProperties {
+  cell_id: string;
+  observation_count: number;
+  last_observed_at?: string | null;
+  best_confidence: number;
+  searched: boolean;
+  staleness_seconds?: number | null;
+}
+
+export interface CoverageCellFeature {
+  type: "Feature";
+  geometry: {
+    type: "Polygon";
+    coordinates: number[][][];
+  };
+  properties: CoverageCellProperties;
+}
+
+export interface CoverageGeoJSON {
+  type: "FeatureCollection";
+  features: CoverageCellFeature[];
+}

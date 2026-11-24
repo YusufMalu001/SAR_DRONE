@@ -1,6 +1,6 @@
 """Generated from shared/jsonschema — DO NOT EDIT MANUALLY."""
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -60,3 +60,70 @@ class Telemetry(BaseModel):
     timestamp: str
 
     model_config = {"populate_by_name": True, "protected_namespaces": ()}
+
+
+class HazardZoneProperties(BaseModel):
+    id: str
+    class_: str = Field(alias="class")
+    severity: str
+    buffer_meters: float = Field(ge=0.0)
+    area_sq_m: float = Field(ge=0.0)
+    detection_count: int = Field(ge=0)
+    feature_type: Optional[str] = None
+
+    model_config = {"populate_by_name": True, "protected_namespaces": ()}
+
+
+class HazardZoneFeature(BaseModel):
+    type: str = "Feature"
+    id: str
+    geometry: Dict[str, Any]
+    properties: HazardZoneProperties
+
+
+class HazardZonesGeoJSON(BaseModel):
+    type: str = "FeatureCollection"
+    features: List[HazardZoneFeature]
+
+
+class SafeRouteProperties(BaseModel):
+    route_id: str
+    safe: bool
+    reason: Optional[str] = None
+    length_meters: float = Field(ge=0.0)
+    risk_score: float = Field(ge=0.0)
+    avoided_hazards: List[str]
+    intersected_hazards: List[str]
+    start: List[float]
+    destination: List[float]
+
+
+class SafeRouteFeature(BaseModel):
+    type: str = "Feature"
+    geometry: Dict[str, Any]
+    properties: SafeRouteProperties
+
+
+class SafeRouteGeoJSON(BaseModel):
+    type: str = "FeatureCollection"
+    features: List[SafeRouteFeature]
+
+
+class CoverageCellProperties(BaseModel):
+    cell_id: str
+    observation_count: int = Field(ge=0)
+    last_observed_at: Optional[str] = None
+    best_confidence: float = Field(ge=0.0, le=1.0)
+    searched: bool
+    staleness_seconds: Optional[float] = None
+
+
+class CoverageCellFeature(BaseModel):
+    type: str = "Feature"
+    geometry: Dict[str, Any]
+    properties: CoverageCellProperties
+
+
+class CoverageGeoJSON(BaseModel):
+    type: str = "FeatureCollection"
+    features: List[CoverageCellFeature]

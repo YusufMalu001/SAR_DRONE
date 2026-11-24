@@ -11,6 +11,7 @@ import (
 
 	"sar-drone-prototype/fusion-service/internal/config"
 	"sar-drone-prototype/fusion-service/internal/connectivity"
+	"sar-drone-prototype/fusion-service/internal/coverage"
 	"sar-drone-prototype/fusion-service/internal/db"
 	"sar-drone-prototype/fusion-service/internal/entity"
 	"sar-drone-prototype/fusion-service/internal/alerting"
@@ -63,8 +64,9 @@ func main() {
 	)
 	clusterer := entity.NewClusterer(entity.DefaultClusterConfig())
 	alertMgr := alerting.NewManager(alerting.DefaultConfig())
+	covGrid := coverage.NewGrid(18.0, 72.0, 29.0, 79.0, 20.0)
 
-	consumer := fusion.NewConsumer(redisClient, pool, hub, telemetryBuf, hazards, clusterer, alertMgr, queue, monitor, cfg)
+	consumer := fusion.NewConsumer(redisClient, pool, hub, telemetryBuf, hazards, clusterer, alertMgr, covGrid, queue, monitor, cfg)
 	go func() {
 		if err := consumer.Run(ctx); err != nil && ctx.Err() == nil {
 			log.Printf("fusion consumer stopped unexpectedly: %v", err)
@@ -74,7 +76,7 @@ func main() {
 
 	httpServer := &http.Server{
 		Addr:    ":" + cfg.Port,
-		Handler: server.NewMux(pool, redisClient, hub, queue, monitor, clusterer, alertMgr, cfg),
+		Handler: server.NewMux(pool, redisClient, hub, queue, monitor, clusterer, alertMgr, covGrid, cfg),
 	}
 
 	go func() {

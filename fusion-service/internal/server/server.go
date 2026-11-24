@@ -12,6 +12,7 @@ import (
 	"sar-drone-prototype/fusion-service/internal/alerting"
 	"sar-drone-prototype/fusion-service/internal/config"
 	"sar-drone-prototype/fusion-service/internal/connectivity"
+	"sar-drone-prototype/fusion-service/internal/coverage"
 	"sar-drone-prototype/fusion-service/internal/entity"
 	"sar-drone-prototype/fusion-service/internal/handlers"
 	"sar-drone-prototype/fusion-service/internal/localqueue"
@@ -27,9 +28,14 @@ func NewMux(
 	monitor *connectivity.Monitor,
 	clusterer *entity.Clusterer,
 	alertMgr *alerting.Manager,
+	covGrid *coverage.Grid,
 	cfg config.Config,
 ) http.Handler {
 	mux := http.NewServeMux()
+
+	if covGrid == nil {
+		covGrid = coverage.NewGrid(18.0, 72.0, 29.0, 79.0, 20.0)
+	}
 
 	mux.HandleFunc("/health", handlers.Health(pool, redisClient))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +53,23 @@ func NewMux(
 
 	// Hazard Polygons (GeoJSON)
 	mux.HandleFunc("GET /hazards/geojson", handlers.HazardsGeoJSON(pool))
+	mux.HandleFunc("GET /hazards/zones", handlers.HazardsGeoJSON(pool))
+
+	// Safe Routes (GeoJSON)
+	mux.HandleFunc("GET /mission/routes/safe", handlers.PlanSafeRoute(pool))
+	mux.HandleFunc("POST /mission/routes/plan", handlers.PlanSafeRoute(pool))
+	mux.HandleFunc("GET /mission/routes/survivors", handlers.SurvivorSafeRoutes(pool))
+
+	// Coverage Map (GeoJSON) & Summary
+	mux.HandleFunc("GET /mission/coverage", handlers.CoverageGeoJSON(covGrid))
+	mux.HandleFunc("GET /mission/coverage/summary", handlers.CoverageSummary(covGrid))
+
+	// Offline Map Raster Tile Server
+	tileDir := cfg.TileDir
+	if tileDir == "" {
+		tileDir = "/data/tiles"
+	}
+	mux.HandleFunc("GET /tiles/", handlers.ServeTile(tileDir))
 
 	// Mission summary & route status
 	mux.HandleFunc("GET /mission/summary", handlers.MissionSummary(pool, cfg.HighPriorityThreshold))
