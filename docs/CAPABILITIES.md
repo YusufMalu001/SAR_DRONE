@@ -74,3 +74,16 @@ cat models/thermal_yolov8n/MODEL_CARD.md
 cat models/hazard_yolov8n/MODEL_CARD.md
 cat models/hazard_classifier_resnet18/MODEL_CARD.md
 ```
+
+---
+
+## 5. Navigation & Dead-Reckoning Capabilities
+
+| Capability | Status | Technology / Method | Measured Performance | Operational Limitation |
+| :--- | :--- | :--- | :--- | :--- |
+| **Boustrophedon Coverage** | **Supported** | Minimum-turn OBB sweep angle optimization, concave polygon decomposition | $> 95\%$ area coverage | Turn speed clamped to 60% nominal |
+| **Adaptive Search** | **Supported** | Automatic 8-point orbit on survivor detection ($\ge 0.50$ conf) | 15m radius orbit at 35m AGL | Requires minimum 30% battery |
+| **Visual-Inertial Odometry (VIO)** | **Supported** | 7-state EKF fusing optical flow, IMU, baro, and magnetometer | Drift $< 2.5\text{m}$ per 100m travelled | Dead-reckoning only; drifts over long unanchored flights |
+| **Full Visual SLAM (ORB-SLAM3)** | **Future Work / Not Implemented** | Feature-based loop closure, global pose graph, sparse bundle adjustment | N/A | Requires stereo/depth sensor and GPU memory budget |
+| **Reactive Obstacle Avoidance** | **Simulation Only** | Artificial Potential Field / Vector Field candidate ray steering | 100% collision-free in 20 random maps | Validated strictly in SITL simulation |
+
