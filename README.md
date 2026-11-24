@@ -14,9 +14,18 @@
 ![PostGIS](https://img.shields.io/badge/Geo-PostGIS-4169E1?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Deploy-Docker_Compose-2496ED?logo=docker&logoColor=white)
 
-[Problem](#the-problem) · [Requirements map](#how-the-problem-statement-is-addressed) · [Architecture](#system-architecture) · [Modules](#modules) · [Resilience](#offline-resilience) · [Evidence](#evidence-and-reproducibility) · [Quick start](#quick-start) · [Scope](#scope-and-honest-limitations)
+[Problem](#the-problem) · [Requirements map](#how-the-problem-statement-is-addressed) · [Architecture](#system-architecture) · [Modules](#modules) · [Dashboard](#dashboard-command-centre) · [Resilience](#offline-resilience) · [Evidence](#evidence-and-reproducibility) · [Quick start](#quick-start) · [Scope](#scope-and-honest-limitations) · [License](#license-and-contributions)
 
 </div>
+
+---
+
+## Command Centre Dashboard
+
+![Command Centre Dashboard](docs/dashboard_screenshot.png)
+
+*Command-centre interface featuring multi-pane operational telemetry, live camera feed with RGB/LWIR detection overlays, toggleable vector layers (survivors, hazard zones, safe rescue routes, coverage heatmaps), interactive mission planner, offline store-and-forward indicator, and mission timeline replay.*
+*(Captured automatically via Playwright in CI: `make demo-capture`)*
 
 ---
 
@@ -224,13 +233,15 @@ Open the dashboard at **http://localhost:5173**.
 |---|---|
 | `make sitl` | Start ArduPilot SITL |
 | `make demo SCENARIO=flood\|fire\|collapse` | Run a scenario (add `MODE=sitl` to fly the planned path in SITL) |
-| `make test` | Unit and integration tests |
-| `make test-chaos` | Network-partition and outage tests |
-| `make evaluate` | Regenerate all results and capability documents |
+| `make demo-capture` | Headless Playwright run capturing dashboard screenshots and demo video |
+| `make test` | Unit and integration tests across Go, Python, and TypeScript |
+| `make test-chaos` | Network-partition and outage tests with zero-loss assertions |
+| `make evaluate` | Regenerate all results and capability documents from raw artifacts |
+| `make evaluate-smoke` | CI smoke verification for artifacts and metric sources |
 | `make lint` | Lint all services |
 | `make down` | Stop the stack |
 
-Guided walkthrough: [`DEMO.md`](DEMO.md). Architecture and algorithms: [`ARCHITECTURE.md`](ARCHITECTURE.md). API: [`docs/API.md`](docs/API.md). Operations: [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+Guided walkthrough: [`DEMO.md`](DEMO.md). Architecture and algorithms: [`ARCHITECTURE.md`](ARCHITECTURE.md). API: [`docs/API.md`](docs/API.md). Operations: [`docs/OPERATIONS.md`](docs/OPERATIONS.md). Audit: [`docs/README_AUDIT.md`](docs/README_AUDIT.md).
 
 ### Ports
 
@@ -241,6 +252,15 @@ Guided walkthrough: [`DEMO.md`](DEMO.md). Architecture and algorithms: [`ARCHITE
 | fusion-service | http://localhost:8002 (`/health`, REST, `/ws/live`) |
 | mission-service | http://localhost:8003 |
 | PostgreSQL / Redis | `5432` / `6379` |
+
+---
+
+## License and Contributions
+
+- **Source Code License:** [Apache 2.0](LICENSE)
+- **Contributing Guidelines:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Code of Conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- **Dataset, Model & Footage Attributions:** [docs/LICENSES.md](docs/LICENSES.md)
 
 ---
 
