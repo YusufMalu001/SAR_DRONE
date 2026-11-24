@@ -139,6 +139,9 @@ class ScenarioRunner:
         telem_idx = 0
         num_telem = len(telemetry_samples)
 
+        # Stable track IDs per ground-truth entity
+        track_id_map = {obj.id: f"track_{i+1:03d}" for i, obj in enumerate(self.scenario.ground_truth_objects)}
+
         try:
             for frame_idx in range(run_frames):
                 elapsed_s = frame_idx / fps
@@ -176,8 +179,9 @@ class ScenarioRunner:
                 for obj in self.scenario.ground_truth_objects:
                     start_f, end_f = obj.appearance_frames
                     if start_f <= frame_idx <= end_f:
-                        # Produce deterministic detection
+                        # Produce deterministic detection with persistent track identity
                         det_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{self.scenario.name}:{obj.id}:{frame_idx}"))
+                        persistent_track_id = track_id_map.get(obj.id, f"track_{obj.id}")
                         det_payload = {
                             "id": det_id,
                             "class": obj.type,
@@ -186,11 +190,14 @@ class ScenarioRunner:
                             "frame_id": frame_id,
                             "source": "rgb",
                             "timestamp": timestamp_str,
+                            "track_id": persistent_track_id,
+                            "modalities": ["rgb", "thermal"] if (self.scenario.video.thermal_pipeline.enabled or self.scenario.video.thermal_path) else ["rgb"],
+                            "model_version": "v2.0-sim-tracker",
                         }
                         if self.redis_client is not None:
                             publish_redis_stream(self.redis_client, self.detections_stream, det_payload)
                         published_detections += 1
-                        logger.debug("Published detection %s class=%s frame=%s", det_id, obj.type, frame_id)
+                        logger.debug("Published detection %s class=%s frame=%s track=%s", det_id, obj.type, frame_id, persistent_track_id)
 
                 if (frame_idx + 1) % 15 == 0 or frame_idx == run_frames - 1:
                     logger.info(

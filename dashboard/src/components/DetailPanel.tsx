@@ -37,6 +37,13 @@ export default function DetailPanel({ detection, onClose }: DetailPanelProps) {
             {detection.class}
           </dd>
 
+          {detection.track_id && (
+            <>
+              <dt>Track ID</dt>
+              <dd className="mono">{detection.track_id}</dd>
+            </>
+          )}
+
           <dt>Confidence</dt>
           <dd>{(detection.confidence * 100).toFixed(1)}%</dd>
 

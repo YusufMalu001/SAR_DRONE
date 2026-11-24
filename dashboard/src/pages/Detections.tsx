@@ -13,6 +13,7 @@ export default function Detections() {
           <thead>
             <tr>
               <th>ID</th>
+              <th>Track ID</th>
               <th>Class</th>
               <th>Confidence</th>
               <th>Coordinates</th>
@@ -25,6 +26,7 @@ export default function Detections() {
             {detections.map((d) => (
               <tr key={d.id}>
                 <td>{d.id.slice(0, 8)}...</td>
+                <td>{d.track_id || "—"}</td>
                 <td>{d.class}</td>
                 <td>{(d.confidence * 100).toFixed(1)}%</td>
                 <td>
