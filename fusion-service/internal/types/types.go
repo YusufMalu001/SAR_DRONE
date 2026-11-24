@@ -39,5 +39,8 @@ type Telemetry struct {
 	Lon       float64 `json:"lon"`
 	Alt       float64 `json:"alt"`
 	Heading   float64 `json:"heading"`
+	Pitch     float64 `json:"pitch,omitempty"`
+	Roll      float64 `json:"roll,omitempty"`
+	Yaw       float64 `json:"yaw,omitempty"`
 	Timestamp string  `json:"timestamp"`
 }

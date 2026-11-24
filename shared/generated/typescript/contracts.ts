@@ -44,5 +44,8 @@ export interface Telemetry {
   lon: number;
   alt: number;
   heading: number;
+  pitch?: number;
+  roll?: number;
+  yaw?: number;
   timestamp: string;
 }

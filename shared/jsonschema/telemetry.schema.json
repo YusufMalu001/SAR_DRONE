@@ -11,6 +11,9 @@
     "lon": { "type": "number", "minimum": -180, "maximum": 180 },
     "alt": { "type": "number", "description": "Altitude in meters." },
     "heading": { "type": "number", "minimum": 0, "maximum": 360 },
+    "pitch": { "type": "number", "description": "Pitch angle in degrees." },
+    "roll": { "type": "number", "description": "Roll angle in degrees." },
+    "yaw": { "type": "number", "description": "Yaw angle in degrees (synonym for heading)." },
     "timestamp": { "type": "string", "format": "date-time" }
   }
 }

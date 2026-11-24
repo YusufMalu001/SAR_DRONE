@@ -12,4 +12,7 @@ message Telemetry {
   double heading = 4;
   // RFC3339 / ISO-8601 timestamp string, e.g. 2026-09-04T12:00:00Z.
   string timestamp = 5;
+  double pitch = 6;
+  double roll = 7;
+  double yaw = 8;
 }

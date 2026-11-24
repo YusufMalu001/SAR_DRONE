@@ -73,7 +73,12 @@ class Telemetry(BaseModel):
     lon: float = Field(ge=-180.0, le=180.0)
     alt: float
     heading: float = Field(ge=0.0, le=360.0)
+    pitch: Optional[float] = None
+    roll: Optional[float] = None
+    yaw: Optional[float] = None
     timestamp: str
+
+    model_config = {"populate_by_name": True, "protected_namespaces": ()}
 '''
     (GEN_PY / "contracts.py").write_text(code)
     (GEN_PY / "__init__.py").write_text("from .contracts import *\n")
@@ -126,6 +131,9 @@ export interface Telemetry {
   lon: number;
   alt: number;
   heading: number;
+  pitch?: number;
+  roll?: number;
+  yaw?: number;
   timestamp: string;
 }
 '''
@@ -153,6 +161,9 @@ def gen_go():
     tag_lon = '`json:"lon"`'
     tag_alt = '`json:"alt"`'
     tag_heading = '`json:"heading"`'
+    tag_pitch = '`json:"pitch,omitempty"`'
+    tag_roll = '`json:"roll,omitempty"`'
+    tag_yaw = '`json:"yaw,omitempty"`'
 
     code = f'''// Package contracts contains types generated from shared/jsonschema -- DO NOT EDIT MANUALLY.
 package contracts
@@ -252,6 +263,9 @@ type Telemetry struct {{
 \tLon       float64 {tag_lon}
 \tAlt       float64 {tag_alt}
 \tHeading   float64 {tag_heading}
+\tPitch     float64 {tag_pitch}
+\tRoll      float64 {tag_roll}
+\tYaw       float64 {tag_yaw}
 \tTimestamp string  {tag_ts}
 }}
 

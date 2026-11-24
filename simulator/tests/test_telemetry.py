@@ -48,7 +48,11 @@ def test_telemetry_payload_schema_keys():
     assert len(samples) > 0
 
     payload = samples[0].to_stream_dict("2026-11-24T12:00:00Z")
-    assert set(payload.keys()) == {"lat", "lon", "alt", "heading", "timestamp"}
+    assert {"lat", "lon", "alt", "heading", "timestamp"}.issubset(set(payload.keys()))
     assert -90.0 <= payload["lat"] <= 90.0
     assert -180.0 <= payload["lon"] <= 180.0
     assert 0.0 <= payload["heading"] <= 360.0
+    if "pitch" in payload:
+        assert -90.0 <= payload["pitch"] <= 90.0
+    if "roll" in payload:
+        assert -180.0 <= payload["roll"] <= 180.0

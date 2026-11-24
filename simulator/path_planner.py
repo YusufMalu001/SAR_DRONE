@@ -29,6 +29,8 @@ class TelemetrySample:
             "lon": round(self.lon, 7),
             "alt": round(self.alt, 2),
             "heading": round(self.heading % 360.0, 2),
+            "pitch": round(self.pitch, 2),
+            "roll": round(self.roll, 2),
             "timestamp": timestamp,
         }
 

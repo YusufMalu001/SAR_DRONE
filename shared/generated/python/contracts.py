@@ -54,4 +54,9 @@ class Telemetry(BaseModel):
     lon: float = Field(ge=-180.0, le=180.0)
     alt: float
     heading: float = Field(ge=0.0, le=360.0)
+    pitch: Optional[float] = None
+    roll: Optional[float] = None
+    yaw: Optional[float] = None
     timestamp: str
+
+    model_config = {"populate_by_name": True, "protected_namespaces": ()}
