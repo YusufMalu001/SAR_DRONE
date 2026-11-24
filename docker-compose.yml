@@ -83,6 +83,7 @@ services:
       # separate from the shared ./data bind mount (models/datasets/etc.)
       # since this is fusion-service's own runtime state.
       - fusion-queue-data:/data
+      - ./data/tiles:/data/tiles:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8002/health"]
       interval: 5s
@@ -111,6 +112,20 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+
+  sitl:
+    image: radarku/ardupilot-sitl:latest
+    environment:
+      - VEHICLE=ArduCopter
+      - MODEL=+
+      - LAT=20.0000
+      - LON=78.0000
+      - ALT=50
+      - DIR=0
+      - SPEEDUP=1
+    ports:
+      - "5760:5760"
+      - "14550:14550/udp"
 
 volumes:
   postgres-data:

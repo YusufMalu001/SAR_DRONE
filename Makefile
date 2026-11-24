@@ -1,7 +1,8 @@
 SHELL := /bin/bash
-.PHONY: up down sitl demo test lint evaluate fetch-assets test-go test-ts test-contracts test-py test-sim lint-go lint-ts
+.PHONY: up down sitl demo test lint evaluate fetch-assets test-go test-ts test-contracts test-py test-sim test-mission lint-go lint-ts
 
 SCENARIO ?= flood
+MODE ?= replay
 
 up:
 	docker compose up -d --build
@@ -10,13 +11,12 @@ down:
 	docker compose down
 
 sitl:
-	@echo "make sitl: not implemented yet (scheduled for mission-service)" >&2
-	@exit 1
+	docker compose up -d sitl
 
 demo:
-	python3 -m simulator.runner --scenario scenarios/$(SCENARIO).yaml --verify-fusion
+	python3 -m simulator.runner --scenario scenarios/$(SCENARIO).yaml --mode $(MODE) --verify-fusion
 
-test: test-go test-ts test-contracts test-py test-sim
+test: test-go test-ts test-contracts test-py test-sim test-mission
 
 test-go:
 	export PATH="/home/yusuf/.local/bin:/home/yusuf/.local/go/bin:$$PATH" && cd fusion-service && go test -v ./...
@@ -44,6 +44,9 @@ test-py:
 test-sim:
 	pytest -v simulator/
 
+test-mission:
+	PYTHONPATH=mission-service pytest -v mission-service/tests
+
 lint: lint-go lint-ts
 
 lint-go:
@@ -53,8 +56,7 @@ lint-ts:
 	cd dashboard && npm run lint
 
 evaluate:
-	@echo "make evaluate: not implemented yet (scheduled for benchmark evaluation)" >&2
-	@exit 1
+	python3 scripts/evaluate_system.py
 
 fetch-assets:
 	./scripts/fetch-assets.sh

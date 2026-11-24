@@ -239,6 +239,8 @@ def main():
     parser.add_argument("--scenario", default="scenarios/flood.yaml", help="Path or name of scenario YAML")
     parser.add_argument("--speed", type=float, default=2.0, help="Playback speed multiplier (e.g. 1.0 or 2.0)")
     parser.add_argument("--max-frames", type=int, default=None, help="Max frames to replay")
+    parser.add_argument("--mode", choices=["replay", "sitl"], default="replay", help="Execution mode: replay or sitl")
+    parser.add_argument("--mavlink-endpoint", default=os.environ.get("MAVLINK_ENDPOINT", "tcp:127.0.0.1:5760"), help="MAVLink endpoint")
     parser.add_argument("--redis-url", default=os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
     parser.add_argument("--detections-stream", default="detections")
     parser.add_argument("--telemetry-stream", default="telemetry")
@@ -266,15 +268,62 @@ def main():
     except Exception as e:
         logger.warning("Could not connect to Redis (%s). Running in dry-run mode.", e)
 
-    runner = ScenarioRunner(
-        scenario=scenario,
-        redis_client=redis_client,
-        speed=args.speed,
-        detections_stream=args.detections_stream,
-        telemetry_stream=args.telemetry_stream,
-    )
+    if args.mode == "sitl":
+        logger.info("Executing in LIVE SITL MODE against ArduPilot (%s)...", args.mavlink_endpoint)
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "mission-service"))
+        from app.mavlink.client import MAVLinkController
+        from app.planner.coverage import CoveragePathPlanner
 
-    result = runner.run(max_frames=args.max_frames)
+        mav = MAVLinkController(
+            connection_str=args.mavlink_endpoint,
+            redis_url=args.redis_url,
+            telemetry_channel=args.telemetry_stream,
+            telemetry_rate_hz=scenario.flight.sensor_rate_hz,
+        )
+
+        connected = mav.connect(timeout_s=5.0)
+        if not connected:
+            logger.error("Could not connect to ArduPilot SITL at %s. Ensure 'make sitl' is running.", args.mavlink_endpoint)
+            sys.exit(1)
+
+        poly_pts = [(p.lat, p.lon) for p in scenario.area_polygon]
+        planner = CoveragePathPlanner(
+            altitude_m=scenario.flight.altitude,
+            hfov_deg=scenario.camera.hfov_deg,
+            vfov_deg=scenario.camera.vfov_deg,
+            lateral_overlap=0.30,
+            forward_overlap=0.40,
+            flight_speed_mps=scenario.flight.speed,
+        )
+        waypoints = planner.plan_coverage(poly_pts)
+        logger.info("Planned %d coverage waypoints in SITL.", len(waypoints))
+
+        mav.upload_mission(waypoints)
+        mav.arm(True)
+        mav.takeoff(scenario.flight.altitude)
+        mav.set_mode("AUTO")
+
+        flight_duration = min(15.0, float(args.max_frames or 60) / scenario.camera.fps)
+        time.sleep(flight_duration)
+
+        mav.return_to_launch()
+        mav.stop()
+        result = {
+            "mode": "sitl",
+            "scenario": scenario.name,
+            "status": "completed",
+            "waypoints_uploaded": len(waypoints),
+            "flight_duration_s": flight_duration,
+        }
+    else:
+        runner = ScenarioRunner(
+            scenario=scenario,
+            redis_client=redis_client,
+            speed=args.speed,
+            detections_stream=args.detections_stream,
+            telemetry_stream=args.telemetry_stream,
+        )
+        result = runner.run(max_frames=args.max_frames)
 
     # Verification if requested
     if args.verify_fusion:
