@@ -1,0 +1,8 @@
+DROP TABLE IF EXISTS hazard_polygons;
+DROP TABLE IF EXISTS entities;
+ALTER TABLE alerts DROP COLUMN IF EXISTS resolved_at;
+ALTER TABLE alerts DROP COLUMN IF EXISTS last_notified_at;
+ALTER TABLE alerts DROP COLUMN IF EXISTS status;
+ALTER TABLE alerts DROP COLUMN IF EXISTS priority_score;
+ALTER TABLE alerts DROP COLUMN IF EXISTS entity_id;
+ALTER TABLE alerts DROP COLUMN IF EXISTS alert_id;

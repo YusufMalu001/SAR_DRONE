@@ -1,16 +1,8 @@
 // Package fusion is the core pipeline: it reads Detection/Telemetry events
-// off Redis streams, matches each detection to the nearest-in-time
-// telemetry sample, geo-projects the detection into a lat/lon, scores its
-// priority, persists it, generates an alert if it's high-priority enough,
-// and broadcasts both to WebSocket clients.
-//
-// Known tradeoff: for a detection drained from the offline queue
-// (RunDrainLoop), the hazard-proximity context used for its alert message
-// is re-evaluated against whatever the HazardTracker holds *at drain time*
-// rather than what was actually nearby when the detection was first seen —
-// that original context isn't persisted through the SQLite queue. In
-// practice this only matters if the drain is delayed long enough for the
-// tracker's window to have moved on.
+// off Redis streams, matches each detection to interpolated telemetry,
+// geo-projects the detection into a lat/lon using a 3D camera ray-casting model,
+// clusters detections into Survivor/Hazard entities, scores priority, persists them,
+// manages alerts with hysteresis, and broadcasts versioned updates over WebSocket.
 package fusion
 
 import (
@@ -31,6 +23,7 @@ import (
 	"sar-drone-prototype/fusion-service/internal/connectivity"
 	"sar-drone-prototype/fusion-service/internal/db"
 	"sar-drone-prototype/fusion-service/internal/dto"
+	"sar-drone-prototype/fusion-service/internal/entity"
 	"sar-drone-prototype/fusion-service/internal/geo"
 	"sar-drone-prototype/fusion-service/internal/localqueue"
 	"sar-drone-prototype/fusion-service/internal/priority"
@@ -39,8 +32,7 @@ import (
 	"sar-drone-prototype/fusion-service/internal/ws"
 )
 
-// Broadcaster is the subset of ws.Hub the consumer needs — narrowed so
-// tests can supply a stub.
+// Broadcaster is the subset of ws.Hub the consumer needs.
 type Broadcaster interface {
 	Broadcast(payload []byte)
 }
@@ -54,6 +46,8 @@ type Consumer struct {
 	hub          Broadcaster
 	telemetryBuf *telemetry.Buffer
 	hazards      *priority.HazardTracker
+	clusterer    *entity.Clusterer
+	alertMgr     *alerting.Manager
 	queue        *localqueue.Queue
 	connectivity *connectivity.Monitor
 	cfg          config.Config
@@ -65,6 +59,8 @@ func NewConsumer(
 	hub Broadcaster,
 	telemetryBuf *telemetry.Buffer,
 	hazards *priority.HazardTracker,
+	clusterer *entity.Clusterer,
+	alertMgr *alerting.Manager,
 	queue *localqueue.Queue,
 	monitor *connectivity.Monitor,
 	cfg config.Config,
@@ -75,14 +71,15 @@ func NewConsumer(
 		hub:          hub,
 		telemetryBuf: telemetryBuf,
 		hazards:      hazards,
+		clusterer:    clusterer,
+		alertMgr:     alertMgr,
 		queue:        queue,
 		connectivity: monitor,
 		cfg:          cfg,
 	}
 }
 
-// Run blocks, consuming both streams via a Redis consumer group until ctx
-// is canceled.
+// Run blocks, consuming both streams via a Redis consumer group until ctx is canceled.
 func (c *Consumer) Run(ctx context.Context) error {
 	for _, stream := range []string{c.cfg.DetectionsCh, c.cfg.TelemetryCh} {
 		err := c.redis.XGroupCreateMkStream(ctx, stream, c.cfg.ConsumerGroup, "0").Err()
@@ -101,18 +98,19 @@ func (c *Consumer) Run(ctx context.Context) error {
 			Consumer: c.cfg.ConsumerName,
 			Streams:  []string{c.cfg.DetectionsCh, c.cfg.TelemetryCh, ">", ">"},
 			Count:    20,
-			Block:    5 * time.Second,
+			Block:    500 * time.Millisecond,
 		}).Result()
 
 		if err != nil {
-			if errors.Is(err, redis.Nil) {
-				continue // block timeout, nothing new
+			if errors.Is(err, redis.Nil) || ctx.Err() != nil {
+				continue
 			}
-			if ctx.Err() != nil {
+			log.Printf("fusion: XReadGroup: %v", err)
+			select {
+			case <-ctx.Done():
 				return ctx.Err()
+			case <-time.After(1 * time.Second):
 			}
-			log.Printf("fusion: xreadgroup error: %v", err)
-			time.Sleep(time.Second)
 			continue
 		}
 
@@ -127,13 +125,13 @@ func (c *Consumer) Run(ctx context.Context) error {
 func (c *Consumer) handleMessage(ctx context.Context, stream string, msg redis.XMessage) {
 	defer func() {
 		if err := c.redis.XAck(ctx, stream, c.cfg.ConsumerGroup, msg.ID).Err(); err != nil {
-			log.Printf("fusion: xack failed for %s/%s: %v", stream, msg.ID, err)
+			log.Printf("fusion: XAck %s/%s: %v", stream, msg.ID, err)
 		}
 	}()
 
 	raw, ok := msg.Values["data"].(string)
 	if !ok {
-		log.Printf("fusion: message %s/%s missing string \"data\" field", stream, msg.ID)
+		log.Printf("fusion: message on %s missing 'data' field", stream)
 		return
 	}
 
@@ -142,6 +140,8 @@ func (c *Consumer) handleMessage(ctx context.Context, stream string, msg redis.X
 		c.handleTelemetry(ctx, raw)
 	case c.cfg.DetectionsCh:
 		c.handleDetection(ctx, raw)
+	default:
+		log.Printf("fusion: unknown stream %q", stream)
 	}
 }
 
@@ -158,12 +158,17 @@ func (c *Consumer) handleTelemetry(ctx context.Context, raw string) {
 		return
 	}
 
-	c.telemetryBuf.Add(telemetry.Sample{Lat: t.Lat, Lon: t.Lon, Alt: t.Alt, Heading: t.Heading, At: at})
+	c.telemetryBuf.Add(telemetry.Sample{
+		Lat:     t.Lat,
+		Lon:     t.Lon,
+		Alt:     t.Alt,
+		Heading: t.Heading,
+		Pitch:   t.Pitch,
+		Roll:    t.Roll,
+		Yaw:     t.Heading,
+		At:      at,
+	})
 
-	// Best-effort: the recorded flight path (GET /mission/route-status) is
-	// a secondary feature, not the primary detection pipeline, so a
-	// Postgres hiccup here is logged rather than sent through the offline
-	// queue like detections are.
 	insertCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if err := db.InsertTelemetry(insertCtx, c.pool, db.TelemetryRow{
@@ -186,40 +191,84 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 		return
 	}
 
+	// 1. Telemetry association: Interpolate position/attitude bracketing frame timestamp
 	tolerance := time.Duration(c.cfg.TelemetryToleranceMS) * time.Millisecond
-	sample, ok := c.telemetryBuf.Nearest(detectedAt, tolerance)
-	if !ok {
-		slog.WarnContext(ctx, "dropping detection: no telemetry within tolerance",
-			slog.String("detection_id", d.ID),
-			slog.String("frame_id", d.FrameID),
-			slog.String("tolerance", tolerance.String()),
-		)
-		return
+	sample, err := c.telemetryBuf.Interpolate(detectedAt, 1*time.Second, tolerance)
+	if err != nil {
+		var ok bool
+		sample, ok = c.telemetryBuf.Nearest(detectedAt, tolerance)
+		if !ok {
+			slog.WarnContext(ctx, "dropping detection: no telemetry within tolerance",
+				slog.String("detection_id", d.ID),
+				slog.String("frame_id", d.FrameID),
+				slog.String("tolerance", tolerance.String()),
+			)
+			return
+		}
 	}
 
-	point := geo.ProjectDetection(
-		d.BBox.X+d.BBox.W/2,
-		d.BBox.Y+d.BBox.H/2,
-		c.cfg.CameraHFOVDeg,
-		c.cfg.CameraVFOVDeg,
-		sample.Alt,
-		sample.Heading,
-		sample.Lat,
-		sample.Lon,
-	)
+	// 2. Full 3D Camera Ray-Casting Projection
+	u, v := geo.GroundContactPoint(geo.BBox{
+		X: d.BBox.X,
+		Y: d.BBox.Y,
+		W: d.BBox.W,
+		H: d.BBox.H,
+	}, d.Class)
 
-	// Captured before Record() below so a hazard-class detection never
-	// matches itself as "the nearest hazard" — both for the priority boost
-	// and for the alert message.
+	cam := geo.CameraModel{
+		HFOVDeg: c.cfg.CameraHFOVDeg,
+		VFOVDeg: c.cfg.CameraVFOVDeg,
+	}
+	pose := geo.DronePose{
+		Lat:        sample.Lat,
+		Lon:        sample.Lon,
+		Alt:        sample.Alt,
+		HeadingDeg: sample.Heading,
+		PitchDeg:   sample.Pitch,
+		RollDeg:    sample.Roll,
+	}
+
+	point, err := geo.ProjectRay(u, v, cam, pose)
+	if err != nil {
+		point = geo.ProjectDetection(
+			d.BBox.X+d.BBox.W/2,
+			d.BBox.Y+d.BBox.H/2,
+			c.cfg.CameraHFOVDeg,
+			c.cfg.CameraVFOVDeg,
+			sample.Alt,
+			sample.Heading,
+			sample.Lat,
+			sample.Lon,
+		)
+	}
+
+	// 3. Hazard Proximity Evaluation
 	match, matchFound := c.hazards.Nearest(point, detectedAt)
 	nearHazard := matchFound && match.DistanceMeters <= c.cfg.HazardProximityMeters
-	score := priority.Score(d.Class, d.Confidence, nearHazard)
-	c.hazards.Record(d.Class, point, detectedAt)
-
+	hazardClass := ""
+	hazardDist := 0.0
 	var hazardMatch *priority.HazardMatch
 	if nearHazard {
+		hazardClass = match.Class
+		hazardDist = match.DistanceMeters
 		hazardMatch = &match
 	}
+	c.hazards.Record(d.Class, point, detectedAt)
+
+	// 4. Geo-Clustering into Survivor / Hazard Entity
+	ent, _ := c.clusterer.IngestDetection(
+		d.ID,
+		d.Class,
+		d.Confidence,
+		point,
+		d.TrackID,
+		d.Modalities,
+		detectedAt,
+		hazardClass,
+		hazardDist,
+	)
+
+	score := ent.PriorityScore
 
 	fd := db.FusedDetection{
 		ID:            d.ID,
@@ -242,14 +291,13 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 
 	slog.InfoContext(ctx, "fused detection",
 		slog.String("detection_id", d.ID),
+		slog.String("entity_id", ent.ID),
 		slog.String("frame_id", d.FrameID),
 		slog.String("class", d.Class),
 		slog.Float64("priority_score", score),
 	)
 
-	// Offline buffering: SQLite is written FIRST, always — Postgres (or a
-	// future external/cloud sync) is only attempted after this succeeds,
-	// so nothing is lost if that next step is unreachable.
+	// Offline write-ahead queue
 	if err := c.queue.Enqueue(ctx, fd); err != nil {
 		log.Printf("fusion: %v", err)
 		return
@@ -257,6 +305,7 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 
 	if c.connectivity.IsOffline() {
 		c.broadcastDetection(fd, dto.StatusQueued)
+		c.broadcastEntity(ent)
 		return
 	}
 
@@ -266,20 +315,64 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 	if err != nil {
 		log.Printf("fusion: insert detection %s failed, left queued for retry: %v", fd.ID, err)
 		c.broadcastDetection(fd, dto.StatusQueued)
+		c.broadcastEntity(ent)
 		return
 	}
 
 	if err := c.queue.Delete(ctx, fd.ID); err != nil {
 		log.Printf("fusion: %v", err)
 	}
+
+	// Persist Entity
+	entCtx, cancelEnt := context.WithTimeout(ctx, 5*time.Second)
+	_ = db.UpsertEntity(entCtx, c.pool, db.EntityRow{
+		ID:                ent.ID,
+		Type:              string(ent.Type),
+		Class:             ent.Class,
+		Lat:               ent.Lat,
+		Lon:               ent.Lon,
+		UncertaintyRadius: ent.UncertaintyRadius,
+		TrackIDs:          ent.TrackIDs,
+		ObservationCount:  ent.ObservationCount,
+		Confidence:        ent.Confidence,
+		Modalities:        ent.Modalities,
+		PriorityScore:     ent.PriorityScore,
+		Status:            string(ent.Status),
+		FirstSeen:         ent.FirstSeen,
+		LastSeen:          ent.LastSeen,
+	})
+	cancelEnt()
+
+	// Update hazard polygons
+	if priority.IsHazardClass(ent.Class) {
+		polyCtx, cancelPoly := context.WithTimeout(ctx, 5*time.Second)
+		_ = db.RecomputeHazardPolygons(polyCtx, c.pool)
+		cancelPoly()
+	}
+
+	// 5. Stateful Alert Management (hysteresis, cooldown, escalation)
+	alertObj, action := c.alertMgr.Evaluate(ent, hazardMatch, d.ID, detectedAt)
+	if action == alerting.ActionCreated || action == alerting.ActionEscalated || action == alerting.ActionRefreshed {
+		alertCtx, cancelAlert := context.WithTimeout(ctx, 5*time.Second)
+		_, _ = db.UpsertAlertRecord(alertCtx, c.pool, db.Alert{
+			AlertID:        alertObj.ID,
+			EntityID:       alertObj.EntityID,
+			DetectionID:    alertObj.DetectionID,
+			PriorityTier:   alertObj.Tier,
+			Message:        alertObj.Message,
+			PriorityScore:  alertObj.PriorityScore,
+			Status:         string(alertObj.Status),
+			LastNotifiedAt: alertObj.LastNotifiedAt,
+			CreatedAt:      alertObj.CreatedAt,
+		})
+		cancelAlert()
+		c.broadcastAlert(alertObj)
+	}
+
 	c.broadcastDetection(fd, dto.StatusLive)
-	c.generateAlert(ctx, fd, hazardMatch)
+	c.broadcastEntity(ent)
 }
 
-// RunDrainLoop drains the local offline queue into Postgres whenever
-// connectivity is (or becomes) available: on a timer as a fallback, and
-// immediately whenever the connectivity monitor reports an offline->online
-// transition.
 func (c *Consumer) RunDrainLoop(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -309,7 +402,7 @@ func (c *Consumer) drainIfOnline(ctx context.Context) {
 
 	for _, fd := range items {
 		if c.connectivity.IsOffline() {
-			return // connectivity dropped mid-drain; resume next trigger
+			return
 		}
 
 		insertCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -317,7 +410,7 @@ func (c *Consumer) drainIfOnline(ctx context.Context) {
 		cancel()
 		if err != nil {
 			log.Printf("fusion: drain: insert %s failed, will retry: %v", fd.ID, err)
-			return // stop this pass; earlier items are unordered relative to fd otherwise
+			return
 		}
 
 		if err := c.queue.Delete(ctx, fd.ID); err != nil {
@@ -325,50 +418,65 @@ func (c *Consumer) drainIfOnline(ctx context.Context) {
 		}
 		c.broadcastDetection(fd, dto.StatusSyncedFromOfflineQueue)
 
-		// The original hazard-proximity context from when this detection
-		// was first processed isn't preserved through the queue, so this
-		// is a best-effort re-evaluation against whatever the tracker
-		// currently holds — see the package doc comment for the tradeoff.
 		point := geo.Point{Lat: fd.Lat, Lon: fd.Lon}
 		match, matchFound := c.hazards.Nearest(point, fd.DetectedAt)
 		nearHazard := matchFound && match.DistanceMeters <= c.cfg.HazardProximityMeters
-		c.hazards.Record(fd.Class, point, fd.DetectedAt)
-
+		hazardClass := ""
+		hazardDist := 0.0
 		var hazardMatch *priority.HazardMatch
 		if nearHazard {
+			hazardClass = match.Class
+			hazardDist = match.DistanceMeters
 			hazardMatch = &match
 		}
-		c.generateAlert(ctx, fd, hazardMatch)
-	}
-}
+		c.hazards.Record(fd.Class, point, fd.DetectedAt)
 
-// generateAlert inserts and broadcasts an Alert if fd's priority score
-// clears the alerting threshold. hazardMatch is the hazard (if any) that
-// was nearby at the time fd was originally scored/processed — nil for an
-// isolated detection or one with no hazard within HazardProximityMeters.
-func (c *Consumer) generateAlert(ctx context.Context, fd db.FusedDetection, hazardMatch *priority.HazardMatch) {
-	if fd.PriorityScore <= alerting.AlertThreshold {
-		return
-	}
+		ent, _ := c.clusterer.IngestDetection(
+			fd.ID,
+			fd.Class,
+			fd.Confidence,
+			point,
+			fd.TrackID,
+			fd.Modalities,
+			fd.DetectedAt,
+			hazardClass,
+			hazardDist,
+		)
 
-	alert := db.Alert{
-		DetectionID:  fd.ID,
-		PriorityTier: alerting.Tier(fd.PriorityScore),
-		Message:      alerting.Message(fd.Class, hazardMatch),
-	}
+		_ = db.UpsertEntity(ctx, c.pool, db.EntityRow{
+			ID:                ent.ID,
+			Type:              string(ent.Type),
+			Class:             ent.Class,
+			Lat:               ent.Lat,
+			Lon:               ent.Lon,
+			UncertaintyRadius: ent.UncertaintyRadius,
+			TrackIDs:          ent.TrackIDs,
+			ObservationCount:  ent.ObservationCount,
+			Confidence:        ent.Confidence,
+			Modalities:        ent.Modalities,
+			PriorityScore:     ent.PriorityScore,
+			Status:            string(ent.Status),
+			FirstSeen:         ent.FirstSeen,
+			LastSeen:          ent.LastSeen,
+		})
 
-	insertCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	inserted, err := db.InsertAlert(insertCtx, c.pool, alert)
-	cancel()
-	if err != nil {
-		log.Printf("fusion: insert alert for detection %s: %v", fd.ID, err)
-		return
+		alertObj, action := c.alertMgr.Evaluate(ent, hazardMatch, fd.ID, fd.DetectedAt)
+		if action == alerting.ActionCreated || action == alerting.ActionEscalated || action == alerting.ActionRefreshed {
+			_, _ = db.UpsertAlertRecord(ctx, c.pool, db.Alert{
+				AlertID:        alertObj.ID,
+				EntityID:       alertObj.EntityID,
+				DetectionID:    alertObj.DetectionID,
+				PriorityTier:   alertObj.Tier,
+				Message:        alertObj.Message,
+				PriorityScore:  alertObj.PriorityScore,
+				Status:         string(alertObj.Status),
+				LastNotifiedAt: alertObj.LastNotifiedAt,
+				CreatedAt:      alertObj.CreatedAt,
+			})
+			c.broadcastAlert(alertObj)
+		}
+		c.broadcastEntity(ent)
 	}
-	if inserted == nil {
-		return // an alert already exists for this detection
-	}
-
-	c.broadcastAlert(*inserted)
 }
 
 func (c *Consumer) broadcastDetection(fd db.FusedDetection, status string) {
@@ -387,27 +495,59 @@ func (c *Consumer) broadcastDetection(fd db.FusedDetection, status string) {
 		Modalities:    fd.Modalities,
 	}
 
-	envelope, err := dto.NewWSMessage(dto.WSMessageDetection, record)
+	bytes, err := dto.NewWSMessage(dto.WSMessageDetection, record)
 	if err != nil {
-		log.Printf("fusion: %v", err)
+		log.Printf("fusion: marshal detection ws message: %v", err)
 		return
 	}
-	c.hub.Broadcast(envelope)
+	c.hub.Broadcast(bytes)
 }
 
-func (c *Consumer) broadcastAlert(alert db.Alert) {
-	record := dto.AlertRecord{
-		ID:           alert.ID,
-		DetectionID:  alert.DetectionID,
-		PriorityTier: alert.PriorityTier,
-		Message:      alert.Message,
-		CreatedAt:    alert.CreatedAt,
+func (c *Consumer) broadcastEntity(e *entity.Entity) {
+	record := dto.EntityRecord{
+		ID:                e.ID,
+		Type:              string(e.Type),
+		Class:             e.Class,
+		Lat:               e.Lat,
+		Lon:               e.Lon,
+		UncertaintyRadius: e.UncertaintyRadius,
+		TrackIDs:          e.TrackIDs,
+		ObservationCount:  e.ObservationCount,
+		Confidence:        e.Confidence,
+		Modalities:        e.Modalities,
+		PriorityScore:     e.PriorityScore,
+		Status:            string(e.Status),
+		FirstSeen:         e.FirstSeen,
+		LastSeen:          e.LastSeen,
+		ResolvedAt:        e.ResolvedAt,
+		Notes:             e.Notes,
 	}
-
-	envelope, err := dto.NewWSMessage(dto.WSMessageAlert, record)
+	bytes, err := dto.NewWSMessage(dto.WSMessageEntityUpdate, record)
 	if err != nil {
-		log.Printf("fusion: %v", err)
+		log.Printf("fusion: marshal entity ws message: %v", err)
 		return
 	}
-	c.hub.Broadcast(envelope)
+	c.hub.Broadcast(bytes)
+}
+
+func (c *Consumer) broadcastAlert(a *alerting.Alert) {
+	record := dto.AlertRecord{
+		ID:             a.ID,
+		EntityID:       a.EntityID,
+		DetectionID:    a.DetectionID,
+		PriorityTier:   a.Tier,
+		Message:        a.Message,
+		PriorityScore:  a.PriorityScore,
+		Status:         string(a.Status),
+		CreatedAt:      a.CreatedAt,
+		LastNotifiedAt: a.LastNotifiedAt,
+		ResolvedAt:     a.ResolvedAt,
+	}
+
+	bytes, err := dto.NewWSMessage(dto.WSMessageAlert, record)
+	if err != nil {
+		log.Printf("fusion: marshal alert ws message: %v", err)
+		return
+	}
+	c.hub.Broadcast(bytes)
 }
