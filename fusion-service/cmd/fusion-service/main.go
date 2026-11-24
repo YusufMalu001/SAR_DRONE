@@ -21,6 +21,7 @@ import (
 	migraterunner "sar-drone-prototype/fusion-service/internal/migrate"
 	"sar-drone-prototype/fusion-service/internal/migrations"
 	"sar-drone-prototype/fusion-service/internal/messaging"
+	"sar-drone-prototype/fusion-service/internal/outbound"
 	"sar-drone-prototype/fusion-service/internal/priority"
 	"sar-drone-prototype/fusion-service/internal/server"
 	"sar-drone-prototype/fusion-service/internal/telemetry"
@@ -66,7 +67,11 @@ func main() {
 	alertMgr := alerting.NewManager(alerting.DefaultConfig())
 	covGrid := coverage.NewGrid(18.0, 72.0, 29.0, 79.0, 20.0)
 
+	dispatcher := outbound.NewDispatcher(queue, cfg)
+	go dispatcher.RunLoop(ctx, 2*time.Second)
+
 	consumer := fusion.NewConsumer(redisClient, pool, hub, telemetryBuf, hazards, clusterer, alertMgr, covGrid, queue, monitor, cfg)
+	consumer.SetDispatcher(dispatcher)
 	go func() {
 		if err := consumer.Run(ctx); err != nil && ctx.Err() == nil {
 			log.Printf("fusion consumer stopped unexpectedly: %v", err)

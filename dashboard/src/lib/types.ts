@@ -51,7 +51,11 @@ export interface Telemetry {
 export interface ServiceHealth {
   status: string;
   service: string;
-  [key: string]: string;
+  mode?: string;
+  queue_depth?: number;
+  oldest_item_age_seconds?: number;
+  last_successful_sync?: string;
+  [key: string]: unknown;
 }
 
 // fusion-service's fused detection: GET /detections, GET /detections/{id},

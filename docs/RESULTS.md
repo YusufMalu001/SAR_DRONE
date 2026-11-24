@@ -1,6 +1,6 @@
 # Empirical System Evaluation Results
 
-*Generated automatically by `make evaluate` on 2026-11-24 15:58:25 UTC. Do not edit by hand.*
+*Generated automatically by `make evaluate` on 2026-11-24 16:27:36 UTC. Do not edit by hand.*
 
 ---
 
@@ -19,7 +19,7 @@ Empirically measured over a 200m GPS-outage window with IMU bias and optical-flo
 
 - **Test Polygon:** Flood scenario bounding box (600m x 600m)
 - **Total Waypoints Generated:** 26
-- **Planning Runtime:** 7.29 ms
+- **Planning Runtime:** 3.27 ms
 - **Measured Area Coverage Fraction:** **100.00%**
 - **Target:** $\ge 95\%$ (Requirement satisfied)
 
@@ -45,7 +45,16 @@ Empirically measured over a 200m GPS-outage window with IMU bias and optical-flo
 
 ---
 
-## 5. Verification Command
+## 5. Edge Deployment Profile (4 Cores / 8 GB RAM Cap)
+
+- **Platform Cap:** 4.0 cores CPU / 8.0 GB RAM
+- **Measured Sustained Throughput:** **284.29 FPS**
+- **Measured Peak Memory:** **13.29 MB**
+- **Edge Profile Target:** $\ge 10.0$ FPS (Status: PASS)
+
+---
+
+## 6. Verification Command
 ```bash
 make evaluate
 ```

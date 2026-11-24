@@ -65,6 +65,19 @@ func UpsertAlertRecord(ctx context.Context, pool *pgxpool.Pool, a Alert) (*Alert
 	return &a, nil
 }
 
+// AcknowledgeAlertInDB sets an alert's status to acknowledged.
+func AcknowledgeAlertInDB(ctx context.Context, pool *pgxpool.Pool, alertID string) error {
+	_, err := pool.Exec(ctx, `
+		UPDATE alerts
+		SET status = 'acknowledged'
+		WHERE alert_id = $1 OR id::text = $1`, alertID,
+	)
+	if err != nil {
+		return fmt.Errorf("acknowledge alert %s in db: %w", alertID, err)
+	}
+	return nil
+}
+
 // ResolveAlertInDB sets an alert's status to resolved.
 func ResolveAlertInDB(ctx context.Context, pool *pgxpool.Pool, alertID string) error {
 	_, err := pool.Exec(ctx, `

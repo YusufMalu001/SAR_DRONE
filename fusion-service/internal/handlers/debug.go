@@ -12,11 +12,15 @@ type setOfflineRequest struct {
 	Offline bool `json:"offline"`
 }
 
-// SetOffline handles POST /debug/set-offline {"offline": true|false} — a
-// manual override for the connectivity monitor, letting offline/recovery
-// behavior be demoed or tested without actually taking Postgres down.
-func SetOffline(monitor *connectivity.Monitor) http.HandlerFunc {
+// SetOffline handles POST /debug/set-offline {"offline": true|false}.
+// Guarded behind allowToggle flag so production builds reject it with 403 Forbidden.
+func SetOffline(monitor *connectivity.Monitor, allowToggle bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !allowToggle {
+			http.Error(w, "debug endpoints disabled in production", http.StatusForbidden)
+			return
+		}
+
 		var req setOfflineRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body: "+err.Error(), http.StatusBadRequest)
@@ -35,8 +39,7 @@ func OfflineStatus(monitor *connectivity.Monitor) http.HandlerFunc {
 	}
 }
 
-// QueueStatus handles GET /debug/queue — introspection into the local
-// offline queue (detections buffered in SQLite, not yet in Postgres).
+// QueueStatus handles GET /debug/queue — introspection into the local offline queue.
 func QueueStatus(queue *localqueue.Queue) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ids, err := queue.IDs(r.Context())

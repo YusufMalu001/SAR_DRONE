@@ -15,9 +15,10 @@ import (
 type AlertStatus string
 
 const (
-	StatusActive    AlertStatus = "active"
-	StatusEscalated AlertStatus = "escalated"
-	StatusResolved  AlertStatus = "resolved"
+	StatusActive       AlertStatus = "active"
+	StatusEscalated    AlertStatus = "escalated"
+	StatusAcknowledged AlertStatus = "acknowledged"
+	StatusResolved     AlertStatus = "resolved"
 )
 
 type AlertAction string
@@ -177,6 +178,20 @@ func (m *Manager) Evaluate(
 }
 
 // ResolveAlertByID explicitly resolves an alert by its ID (e.g. via REST API).
+func (m *Manager) AcknowledgeAlertByID(alertID string) (*Alert, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	a, ok := m.alertsByID[alertID]
+	if !ok {
+		return nil, false
+	}
+
+	a.Status = StatusAcknowledged
+	cp := *a
+	return &cp, true
+}
+
 func (m *Manager) ResolveAlertByID(alertID string) (*Alert, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

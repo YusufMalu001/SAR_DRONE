@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -57,6 +58,16 @@ type Config struct {
 
 	// Directory containing offline pre-cached raster tiles (/tiles/{z}/{x}/{y}.png).
 	TileDir string
+
+	// Guard for /debug/set-offline toggle in production builds.
+	AllowDebugToggle bool
+
+	// Outbound alerting adapters (comma-separated: mock, webhook, mqtt, email, sms).
+	OutboundAdapters []string
+	WebhookURL       string
+	MQTTHost         string
+	EmailSMTP        string
+	SMSEndpoint      string
 }
 
 func getenv(key, fallback string) string {
@@ -84,7 +95,25 @@ func getenvFloat(key string, fallback float64) float64 {
 	return fallback
 }
 
+func getenvBool(key string, fallback bool) bool {
+	if v := os.Getenv(key); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
+		}
+	}
+	return fallback
+}
+
 func Load() Config {
+	adaptersStr := getenv("OUTBOUND_ADAPTERS", "mock")
+	var adapters []string
+	for _, a := range strings.Split(adaptersStr, ",") {
+		trimmed := strings.TrimSpace(a)
+		if trimmed != "" {
+			adapters = append(adapters, trimmed)
+		}
+	}
+
 	return Config{
 		Port:         getenv("PORT", "8002"),
 		RedisAddr:    getenv("REDIS_ADDR", "localhost:6379"),
@@ -112,5 +141,13 @@ func Load() Config {
 		RouteObstructionMeters:    getenvFloat("ROUTE_OBSTRUCTION_METERS", 20.0),
 		RouteStatusTelemetryLimit: getenvInt("ROUTE_STATUS_TELEMETRY_LIMIT", 5000),
 		TileDir:                   getenv("TILE_DIR", "/data/tiles"),
+
+		AllowDebugToggle: getenvBool("ALLOW_DEBUG_TOGGLE", true),
+
+		OutboundAdapters: adapters,
+		WebhookURL:       getenv("ALERT_WEBHOOK_URL", ""),
+		MQTTHost:         getenv("ALERT_MQTT_HOST", ""),
+		EmailSMTP:        getenv("ALERT_EMAIL_SMTP", ""),
+		SMSEndpoint:      getenv("ALERT_SMS_ENDPOINT", ""),
 	}
 }

@@ -27,6 +27,7 @@ import (
 	"sar-drone-prototype/fusion-service/internal/entity"
 	"sar-drone-prototype/fusion-service/internal/geo"
 	"sar-drone-prototype/fusion-service/internal/localqueue"
+	"sar-drone-prototype/fusion-service/internal/outbound"
 	"sar-drone-prototype/fusion-service/internal/priority"
 	"sar-drone-prototype/fusion-service/internal/telemetry"
 	"sar-drone-prototype/fusion-service/internal/types"
@@ -52,7 +53,12 @@ type Consumer struct {
 	coverageGrid *coverage.Grid
 	queue        *localqueue.Queue
 	connectivity *connectivity.Monitor
+	dispatcher   *outbound.Dispatcher
 	cfg          config.Config
+}
+
+func (c *Consumer) SetDispatcher(d *outbound.Dispatcher) {
+	c.dispatcher = d
 }
 
 func NewConsumer(
@@ -309,35 +315,13 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 		c.coverageGrid.RecordDetection(fd.Lat, fd.Lon, d.Confidence)
 	}
 
-	// Offline write-ahead queue
-	if err := c.queue.Enqueue(ctx, fd); err != nil {
+	// Offline write-ahead queue: detection, entity, and alert
+	if err := c.queue.EnqueueDetection(ctx, fd); err != nil {
 		log.Printf("fusion: %v", err)
 		return
 	}
 
-	if c.connectivity.IsOffline() {
-		c.broadcastDetection(fd, dto.StatusQueued)
-		c.broadcastEntity(ent)
-		return
-	}
-
-	insertCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	err = db.InsertDetection(insertCtx, c.pool, fd)
-	cancel()
-	if err != nil {
-		log.Printf("fusion: insert detection %s failed, left queued for retry: %v", fd.ID, err)
-		c.broadcastDetection(fd, dto.StatusQueued)
-		c.broadcastEntity(ent)
-		return
-	}
-
-	if err := c.queue.Delete(ctx, fd.ID); err != nil {
-		log.Printf("fusion: %v", err)
-	}
-
-	// Persist Entity
-	entCtx, cancelEnt := context.WithTimeout(ctx, 5*time.Second)
-	_ = db.UpsertEntity(entCtx, c.pool, db.EntityRow{
+	entRow := db.EntityRow{
 		ID:                ent.ID,
 		Type:              string(ent.Type),
 		Class:             ent.Class,
@@ -352,21 +336,15 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 		Status:            string(ent.Status),
 		FirstSeen:         ent.FirstSeen,
 		LastSeen:          ent.LastSeen,
-	})
-	cancelEnt()
-
-	// Update hazard polygons
-	if priority.IsHazardClass(ent.Class) {
-		polyCtx, cancelPoly := context.WithTimeout(ctx, 5*time.Second)
-		_ = db.RecomputeHazardPolygons(polyCtx, c.pool)
-		cancelPoly()
 	}
+	_ = c.queue.EnqueueEntity(ctx, entRow)
 
 	// 5. Stateful Alert Management (hysteresis, cooldown, escalation)
 	alertObj, action := c.alertMgr.Evaluate(ent, hazardMatch, d.ID, detectedAt)
-	if action == alerting.ActionCreated || action == alerting.ActionEscalated || action == alerting.ActionRefreshed {
-		alertCtx, cancelAlert := context.WithTimeout(ctx, 5*time.Second)
-		_, _ = db.UpsertAlertRecord(alertCtx, c.pool, db.Alert{
+	var alertDbRow db.Alert
+	hasAlert := action == alerting.ActionCreated || action == alerting.ActionEscalated || action == alerting.ActionRefreshed
+	if hasAlert {
+		alertDbRow = db.Alert{
 			AlertID:        alertObj.ID,
 			EntityID:       alertObj.EntityID,
 			DetectionID:    alertObj.DetectionID,
@@ -376,11 +354,61 @@ func (c *Consumer) handleDetection(ctx context.Context, raw string) {
 			Status:         string(alertObj.Status),
 			LastNotifiedAt: alertObj.LastNotifiedAt,
 			CreatedAt:      alertObj.CreatedAt,
-		})
+		}
+		_ = c.queue.EnqueueAlert(ctx, alertDbRow)
+		if c.dispatcher != nil {
+			_ = c.dispatcher.EnqueueAlert(ctx, *alertObj)
+		}
+	}
+
+	if c.connectivity.IsOffline() {
+		c.broadcastDetection(fd, dto.StatusQueued)
+		c.broadcastEntity(ent)
+		if hasAlert {
+			c.broadcastAlert(alertObj)
+		}
+		return
+	}
+
+	insertCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	err = db.InsertDetection(insertCtx, c.pool, fd)
+	cancel()
+	if err != nil {
+		log.Printf("fusion: insert detection %s failed, left queued for retry: %v", fd.ID, err)
+		c.broadcastDetection(fd, dto.StatusQueued)
+		c.broadcastEntity(ent)
+		if hasAlert {
+			c.broadcastAlert(alertObj)
+		}
+		return
+	}
+
+	_ = c.queue.DeleteDetection(ctx, fd.ID)
+
+	// Persist Entity
+	entCtx, cancelEnt := context.WithTimeout(ctx, 5*time.Second)
+	if err := db.UpsertEntity(entCtx, c.pool, entRow); err == nil {
+		_ = c.queue.DeleteEntity(ctx, ent.ID)
+	}
+	cancelEnt()
+
+	// Update hazard polygons
+	if priority.IsHazardClass(ent.Class) {
+		polyCtx, cancelPoly := context.WithTimeout(ctx, 5*time.Second)
+		_ = db.RecomputeHazardPolygons(polyCtx, c.pool)
+		cancelPoly()
+	}
+
+	if hasAlert {
+		alertCtx, cancelAlert := context.WithTimeout(ctx, 5*time.Second)
+		if _, err := db.UpsertAlertRecord(alertCtx, c.pool, alertDbRow); err == nil {
+			_ = c.queue.DeleteAlert(ctx, alertObj.ID)
+		}
 		cancelAlert()
 		c.broadcastAlert(alertObj)
 	}
 
+	_ = c.queue.RecordSyncSuccess(ctx)
 	c.broadcastDetection(fd, dto.StatusLive)
 	c.broadcastEntity(ent)
 }
@@ -406,6 +434,7 @@ func (c *Consumer) drainIfOnline(ctx context.Context) {
 		return
 	}
 
+	// 1. Drain detections
 	items, err := c.queue.ListOrdered(ctx)
 	if err != nil {
 		log.Printf("fusion: drain: %v", err)
@@ -425,9 +454,7 @@ func (c *Consumer) drainIfOnline(ctx context.Context) {
 			return
 		}
 
-		if err := c.queue.Delete(ctx, fd.ID); err != nil {
-			log.Printf("fusion: drain: %v", err)
-		}
+		_ = c.queue.DeleteDetection(ctx, fd.ID)
 		c.broadcastDetection(fd, dto.StatusSyncedFromOfflineQueue)
 
 		point := geo.Point{Lat: fd.Lat, Lon: fd.Lon}
@@ -455,7 +482,7 @@ func (c *Consumer) drainIfOnline(ctx context.Context) {
 			hazardDist,
 		)
 
-		_ = db.UpsertEntity(ctx, c.pool, db.EntityRow{
+		entRow := db.EntityRow{
 			ID:                ent.ID,
 			Type:              string(ent.Type),
 			Class:             ent.Class,
@@ -470,11 +497,14 @@ func (c *Consumer) drainIfOnline(ctx context.Context) {
 			Status:            string(ent.Status),
 			FirstSeen:         ent.FirstSeen,
 			LastSeen:          ent.LastSeen,
-		})
+		}
+		if err := db.UpsertEntity(ctx, c.pool, entRow); err == nil {
+			_ = c.queue.DeleteEntity(ctx, ent.ID)
+		}
 
 		alertObj, action := c.alertMgr.Evaluate(ent, hazardMatch, fd.ID, fd.DetectedAt)
 		if action == alerting.ActionCreated || action == alerting.ActionEscalated || action == alerting.ActionRefreshed {
-			_, _ = db.UpsertAlertRecord(ctx, c.pool, db.Alert{
+			alertDbRow := db.Alert{
 				AlertID:        alertObj.ID,
 				EntityID:       alertObj.EntityID,
 				DetectionID:    alertObj.DetectionID,
@@ -484,11 +514,45 @@ func (c *Consumer) drainIfOnline(ctx context.Context) {
 				Status:         string(alertObj.Status),
 				LastNotifiedAt: alertObj.LastNotifiedAt,
 				CreatedAt:      alertObj.CreatedAt,
-			})
+			}
+			if _, err := db.UpsertAlertRecord(ctx, c.pool, alertDbRow); err == nil {
+				_ = c.queue.DeleteAlert(ctx, alertObj.ID)
+			}
 			c.broadcastAlert(alertObj)
 		}
 		c.broadcastEntity(ent)
 	}
+
+	// 2. Drain buffered entities
+	if queuedEnts, err := c.queue.ListOrderedEntities(ctx); err == nil {
+		for _, e := range queuedEnts {
+			if c.connectivity.IsOffline() {
+				return
+			}
+			if err := db.UpsertEntity(ctx, c.pool, e); err == nil {
+				_ = c.queue.DeleteEntity(ctx, e.ID)
+			}
+		}
+	}
+
+	// 3. Drain buffered alerts
+	if queuedAlerts, err := c.queue.ListOrderedAlerts(ctx); err == nil {
+		for _, a := range queuedAlerts {
+			if c.connectivity.IsOffline() {
+				return
+			}
+			if _, err := db.UpsertAlertRecord(ctx, c.pool, a); err == nil {
+				_ = c.queue.DeleteAlert(ctx, a.AlertID)
+			}
+		}
+	}
+
+	// 4. Drain outbound notifications
+	if c.dispatcher != nil {
+		_ = c.dispatcher.Drain(ctx)
+	}
+
+	_ = c.queue.RecordSyncSuccess(ctx)
 }
 
 func (c *Consumer) broadcastDetection(fd db.FusedDetection, status string) {

@@ -1,0 +1,29 @@
+# Edge deployment profile for on-device operation.
+# Strict CPU/RAM caps matching a constrained edge platform (4 cores / 8 GB total budget).
+# Runs inference + fusion + redis + local postgres for full autonomous offline capability.
+
+services:
+  postgres:
+    cpus: "1.0"
+    mem_limit: 1024M
+    environment:
+      POSTGRES_USER: sar
+      POSTGRES_PASSWORD: sar
+      POSTGRES_DB: sar
+
+  redis:
+    cpus: "0.5"
+    mem_limit: 1024M
+
+  inference-service:
+    cpus: "2.0"
+    mem_limit: 4096M
+    environment:
+      ONNX_PROVIDER: CPUExecutionProvider
+      DEVICE: cpu
+
+  fusion-service:
+    cpus: "1.5"
+    mem_limit: 2048M
+    environment:
+      ALLOW_DEBUG_TOGGLE: "false" # production-hardened for edge

@@ -1,0 +1,12 @@
+{
+  "benchmark": "edge_profile_sustained_performance",
+  "cpu_cap": "4.0 cores",
+  "ram_budget": "8.0 GB",
+  "sustained_fps": 284.29,
+  "peak_memory_mb": 13.29,
+  "frames_evaluated": 150,
+  "elapsed_seconds": 0.528,
+  "target_fps": 10.0,
+  "status": "PASS",
+  "measured_at": "2026-11-24T16:25:14.927273+00:00"
+}

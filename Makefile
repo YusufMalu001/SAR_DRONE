@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: up down sitl demo test lint evaluate fetch-assets test-go test-ts test-contracts test-py test-sim test-mission lint-go lint-ts
+.PHONY: up down sitl demo test lint evaluate fetch-assets test-go test-ts test-contracts test-py test-sim test-mission lint-go lint-ts test-chaos
 
 SCENARIO ?= flood
 MODE ?= replay
@@ -46,6 +46,9 @@ test-sim:
 
 test-mission:
 	PYTHONPATH=mission-service pytest -v mission-service/tests
+
+test-chaos:
+	python3 scripts/test_chaos.py
 
 lint: lint-go lint-ts
 

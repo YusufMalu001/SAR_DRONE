@@ -12,7 +12,7 @@ import (
 	"sar-drone-prototype/fusion-service/internal/dto"
 )
 
-// ListAlerts handles GET /alerts?limit=&status= — most recent first.
+// ListAlerts handles GET /alerts?limit=&status=&state= — most recent first.
 func ListAlerts(pool *pgxpool.Pool, alertMgr *alerting.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		limit := defaultListLimit
@@ -22,6 +22,9 @@ func ListAlerts(pool *pgxpool.Pool, alertMgr *alerting.Manager) http.HandlerFunc
 			}
 		}
 		status := r.URL.Query().Get("status")
+		if status == "" {
+			status = r.URL.Query().Get("state")
+		}
 
 		rows, err := db.ListAlertsWithFilter(r.Context(), pool, limit, status)
 		if err != nil {
@@ -97,6 +100,23 @@ func GetAlertByID(pool *pgxpool.Pool, alertMgr *alerting.Manager) http.HandlerFu
 		}
 
 		http.Error(w, "alert not found", http.StatusNotFound)
+	}
+}
+
+// AckAlert handles POST /alerts/{id}/ack
+func AckAlert(pool *pgxpool.Pool, alertMgr *alerting.Manager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+
+		a, ok := alertMgr.AcknowledgeAlertByID(id)
+		_ = db.AcknowledgeAlertInDB(r.Context(), pool, id)
+
+		if !ok {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "acknowledged", "id": id})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, alertToDTO(*a))
 	}
 }
 
