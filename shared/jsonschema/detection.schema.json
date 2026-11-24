@@ -42,6 +42,35 @@
     "timestamp": {
       "type": "string",
       "format": "date-time"
+    },
+    "track_id": {
+      "type": ["string", "null"],
+      "description": "Stable tracking ID across frames (e.g. '1', 'track_001')."
+    },
+    "modalities": {
+      "type": ["array", "null"],
+      "description": "Sensor modalities that contributed to this detection.",
+      "items": {
+        "type": "string",
+        "enum": ["rgb", "thermal"]
+      }
+    },
+    "model_version": {
+      "type": ["string", "null"],
+      "description": "Version string of the inference model that produced this detection."
+    },
+    "timings_ms": {
+      "type": ["object", "null"],
+      "description": "Per-stage processing timings in milliseconds.",
+      "additionalProperties": false,
+      "properties": {
+        "decode": { "type": "number" },
+        "preprocess": { "type": "number" },
+        "inference": { "type": "number" },
+        "postprocess": { "type": "number" },
+        "publish": { "type": "number" },
+        "total": { "type": "number" }
+      }
     }
   }
 }

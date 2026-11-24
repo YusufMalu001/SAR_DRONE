@@ -29,6 +29,16 @@ message BBox {
   float h = 4;
 }
 
+// Per-stage processing timings in milliseconds.
+message StageTimings {
+  double decode = 1;
+  double preprocess = 2;
+  double inference = 3;
+  double postprocess = 4;
+  double publish = 5;
+  double total = 6;
+}
+
 // A single detection event emitted by the inference-service and
 // consumed by the fusion-service for geotagging.
 message Detection {
@@ -40,4 +50,8 @@ message Detection {
   Source source = 6;
   // RFC3339 / ISO-8601 timestamp string, e.g. 2026-09-04T12:00:00Z.
   string timestamp = 7;
+  string track_id = 8;
+  repeated Source modalities = 9;
+  string model_version = 10;
+  StageTimings timings_ms = 11;
 }

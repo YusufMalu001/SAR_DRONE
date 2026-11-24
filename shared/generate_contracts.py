@@ -19,7 +19,7 @@ for d in (GEN_PY, GEN_GO, GEN_TS):
 def gen_python():
     code = '''"""Generated from shared/jsonschema — DO NOT EDIT MANUALLY."""
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -43,6 +43,15 @@ class BBox(BaseModel):
     h: float = Field(ge=0.0, le=1.0)
 
 
+class StageTimings(BaseModel):
+    decode: Optional[float] = None
+    preprocess: Optional[float] = None
+    inference: Optional[float] = None
+    postprocess: Optional[float] = None
+    publish: Optional[float] = None
+    total: Optional[float] = None
+
+
 class Detection(BaseModel):
     id: str
     class_: DetectionClass = Field(alias="class")
@@ -51,8 +60,12 @@ class Detection(BaseModel):
     frame_id: str
     source: Source
     timestamp: str
+    track_id: Optional[str] = None
+    modalities: Optional[List[Source]] = None
+    model_version: Optional[str] = None
+    timings_ms: Optional[StageTimings] = None
 
-    model_config = {"populate_by_name": True}
+    model_config = {"populate_by_name": True, "protected_namespaces": ()}
 
 
 class Telemetry(BaseModel):
@@ -85,6 +98,15 @@ export interface BBox {
   h: number;
 }
 
+export interface StageTimings {
+  decode?: number;
+  preprocess?: number;
+  inference?: number;
+  postprocess?: number;
+  publish?: number;
+  total?: number;
+}
+
 export interface Detection {
   id: string;
   class: DetectionClass;
@@ -93,6 +115,10 @@ export interface Detection {
   frame_id: string;
   source: Source;
   timestamp: string;
+  track_id?: string;
+  modalities?: Source[];
+  model_version?: string;
+  timings_ms?: StageTimings;
 }
 
 export interface Telemetry {
@@ -119,6 +145,10 @@ def gen_go():
     tag_frame = '`json:"frame_id"`'
     tag_source = '`json:"source"`'
     tag_ts = '`json:"timestamp"`'
+    tag_track_id = '`json:"track_id,omitempty"`'
+    tag_modalities = '`json:"modalities,omitempty"`'
+    tag_version = '`json:"model_version,omitempty"`'
+    tag_timings = '`json:"timings_ms,omitempty"`'
     tag_lat = '`json:"lat"`'
     tag_lon = '`json:"lon"`'
     tag_alt = '`json:"alt"`'
@@ -156,14 +186,27 @@ type BBox struct {{
 \tH float64 {tag_h}
 }}
 
+type StageTimings struct {{
+\tDecode      float64 `json:"decode,omitempty"`
+\tPreprocess  float64 `json:"preprocess,omitempty"`
+\tInference   float64 `json:"inference,omitempty"`
+\tPostprocess float64 `json:"postprocess,omitempty"`
+\tPublish     float64 `json:"publish,omitempty"`
+\tTotal       float64 `json:"total,omitempty"`
+}}
+
 type Detection struct {{
-\tID         string         {tag_id}
-\tClass      DetectionClass {tag_class}
-\tConfidence float64        {tag_conf}
-\tBBox       BBox           {tag_bbox}
-\tFrameID    string         {tag_frame}
-\tSource     Source         {tag_source}
-\tTimestamp  string         {tag_ts}
+\tID           string        {tag_id}
+\tClass        DetectionClass {tag_class}
+\tConfidence   float64       {tag_conf}
+\tBBox         BBox          {tag_bbox}
+\tFrameID      string        {tag_frame}
+\tSource       Source        {tag_source}
+\tTimestamp    string        {tag_ts}
+\tTrackID      string        {tag_track_id}
+\tModalities   []Source      {tag_modalities}
+\tModelVersion string        {tag_version}
+\tTimingsMS    *StageTimings {tag_timings}
 }}
 
 func (d *Detection) Validate() error {{
@@ -192,6 +235,13 @@ func (d *Detection) Validate() error {{
 \tif _, err := time.Parse(time.RFC3339, d.Timestamp); err != nil {{
 \t\tif _, err := time.Parse(time.RFC3339Nano, d.Timestamp); err != nil {{
 \t\t\treturn fmt.Errorf("timestamp is not valid RFC3339: %w", err)
+\t\t}}
+\t}}
+\tfor _, m := range d.Modalities {{
+\t\tswitch m {{
+\t\tcase SourceRGB, SourceThermal:
+\t\tdefault:
+\t\t\treturn fmt.Errorf("invalid modality %q", m)
 \t\t}}
 \t}}
 \treturn nil
@@ -223,7 +273,6 @@ func (t *Telemetry) Validate() error {{
 \treturn nil
 }}
 '''
-    (GEN_GO / "contracts.go").write_text(code)
     (GEN_GO / "contracts.go").write_text(code)
 
 

@@ -30,14 +30,27 @@ type BBox struct {
 	H float64 `json:"h"`
 }
 
+type StageTimings struct {
+	Decode      float64 `json:"decode,omitempty"`
+	Preprocess  float64 `json:"preprocess,omitempty"`
+	Inference   float64 `json:"inference,omitempty"`
+	Postprocess float64 `json:"postprocess,omitempty"`
+	Publish     float64 `json:"publish,omitempty"`
+	Total       float64 `json:"total,omitempty"`
+}
+
 type Detection struct {
-	ID         string         `json:"id"`
-	Class      DetectionClass `json:"class"`
-	Confidence float64        `json:"confidence"`
-	BBox       BBox           `json:"bbox"`
-	FrameID    string         `json:"frame_id"`
-	Source     Source         `json:"source"`
-	Timestamp  string         `json:"timestamp"`
+	ID           string        `json:"id"`
+	Class        DetectionClass `json:"class"`
+	Confidence   float64       `json:"confidence"`
+	BBox         BBox          `json:"bbox"`
+	FrameID      string        `json:"frame_id"`
+	Source       Source        `json:"source"`
+	Timestamp    string        `json:"timestamp"`
+	TrackID      string        `json:"track_id,omitempty"`
+	Modalities   []Source      `json:"modalities,omitempty"`
+	ModelVersion string        `json:"model_version,omitempty"`
+	TimingsMS    *StageTimings `json:"timings_ms,omitempty"`
 }
 
 func (d *Detection) Validate() error {
@@ -66,6 +79,13 @@ func (d *Detection) Validate() error {
 	if _, err := time.Parse(time.RFC3339, d.Timestamp); err != nil {
 		if _, err := time.Parse(time.RFC3339Nano, d.Timestamp); err != nil {
 			return fmt.Errorf("timestamp is not valid RFC3339: %w", err)
+		}
+	}
+	for _, m := range d.Modalities {
+		switch m {
+		case SourceRGB, SourceThermal:
+		default:
+			return fmt.Errorf("invalid modality %q", m)
 		}
 	}
 	return nil

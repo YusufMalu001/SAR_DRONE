@@ -16,6 +16,15 @@ export interface BBox {
   h: number;
 }
 
+export interface StageTimings {
+  decode?: number;
+  preprocess?: number;
+  inference?: number;
+  postprocess?: number;
+  publish?: number;
+  total?: number;
+}
+
 export interface Detection {
   id: string;
   class: DetectionClass;
@@ -24,6 +33,10 @@ export interface Detection {
   frame_id: string;
   source: Source;
   timestamp: string;
+  track_id?: string;
+  modalities?: Source[];
+  model_version?: string;
+  timings_ms?: StageTimings;
 }
 
 export interface Telemetry {

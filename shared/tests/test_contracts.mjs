@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const detectionSchema = JSON.parse(readFileSync(join(__dirname, '../jsonschema/detection.schema.json'), 'utf8'));
 const telemetrySchema = JSON.parse(readFileSync(join(__dirname, '../jsonschema/telemetry.schema.json'), 'utf8'));
 
-// Run Python producer
+// Run Python producer with v2 multi-sensor/tracking fields
 const pyScript = `
 import json, uuid
 from datetime import datetime, timezone
@@ -20,7 +20,18 @@ payload = {
         "bbox": {"x": 0.15, "y": 0.25, "w": 0.35, "h": 0.45},
         "frame_id": "frame_00000200",
         "source": "rgb",
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "track_id": "track_101",
+        "modalities": ["rgb", "thermal"],
+        "model_version": "yolov8n-v2.0",
+        "timings_ms": {
+            "decode": 2.5,
+            "preprocess": 1.2,
+            "inference": 15.4,
+            "postprocess": 3.1,
+            "publish": 0.8,
+            "total": 23.0
+        }
     },
     "telemetry": {
         "lat": 19.0760,
@@ -47,6 +58,22 @@ function validateDetection(d) {
   if (typeof d.frame_id !== 'string' || !d.frame_id) throw new Error('invalid frame_id');
   if (!detectionSchema.properties.source.enum.includes(d.source)) throw new Error('invalid source: ' + d.source);
   if (isNaN(Date.parse(d.timestamp))) throw new Error('invalid timestamp');
+
+  // Validate optional v2 fields
+  if (d.track_id !== undefined && typeof d.track_id !== 'string') throw new Error('invalid track_id');
+  if (d.modalities !== undefined) {
+    if (!Array.isArray(d.modalities)) throw new Error('invalid modalities');
+    for (const m of d.modalities) {
+      if (!['rgb', 'thermal'].includes(m)) throw new Error('invalid modality: ' + m);
+    }
+  }
+  if (d.model_version !== undefined && typeof d.model_version !== 'string') throw new Error('invalid model_version');
+  if (d.timings_ms !== undefined) {
+    if (typeof d.timings_ms !== 'object') throw new Error('invalid timings_ms');
+    for (const [k, v] of Object.entries(d.timings_ms)) {
+      if (typeof v !== 'number') throw new Error(`invalid timing for ${k}`);
+    }
+  }
 }
 
 function validateTelemetry(t) {

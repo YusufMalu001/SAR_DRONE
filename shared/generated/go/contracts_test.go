@@ -24,7 +24,14 @@ payload = {
         "bbox": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4},
         "frame_id": "frame_00000100",
         "source": "thermal",
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "track_id": "track_42",
+        "modalities": ["rgb", "thermal"],
+        "model_version": "v2.0",
+        "timings_ms": {
+            "inference": 14.5,
+            "total": 21.0
+        }
     },
     "telemetry": {
         "lat": 19.0760,
@@ -55,6 +62,15 @@ print(json.dumps(payload))
 	}
 	if parsed.Detection.Source != SourceThermal {
 		t.Errorf("expected source 'thermal', got %q", parsed.Detection.Source)
+	}
+	if parsed.Detection.TrackID != "track_42" {
+		t.Errorf("expected track_id 'track_42', got %q", parsed.Detection.TrackID)
+	}
+	if len(parsed.Detection.Modalities) != 2 {
+		t.Errorf("expected 2 modalities, got %v", parsed.Detection.Modalities)
+	}
+	if parsed.Detection.TimingsMS == nil || parsed.Detection.TimingsMS.Inference != 14.5 {
+		t.Errorf("expected timings_ms.inference 14.5, got %v", parsed.Detection.TimingsMS)
 	}
 
 	// Validate Telemetry
