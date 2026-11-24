@@ -1,0 +1,322 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SAR Drone Fusion Service API",
+    "description": "Situational intelligence fusion service for autonomous search-and-rescue drone: multi-sensor telemetry association, camera ray-casting geo-projection, spatial clustering into Survivor/Hazard entities, dynamic priority scoring, and stateful alerts.",
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8002",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Service health check",
+        "responses": {
+          "200": {
+            "description": "Service is healthy and ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "service": { "type": "string", "example": "fusion-service" },
+                    "postgres": { "type": "string", "example": "connected" },
+                    "redis": { "type": "string", "example": "connected" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities": {
+      "get": {
+        "summary": "List clustered entities (survivors and hazards)",
+        "parameters": [
+          { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["survivor", "hazard"] } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["active", "rescued", "cleared"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of clustered entities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Entity" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities/{id}": {
+      "get": {
+        "summary": "Get entity by ID",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entity details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Entity" }
+              }
+            }
+          },
+          "404": { "description": "Entity not found" }
+        }
+      }
+    },
+    "/entities/{id}/resolve": {
+      "post": {
+        "summary": "Resolve an entity (mark rescued or cleared)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "string", "enum": ["rescued", "cleared"], "default": "rescued" },
+                  "notes": { "type": "string", "example": "Evacuated by boat crew" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated resolved entity",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Entity" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts": {
+      "get": {
+        "summary": "List alerts with hysteresis states",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 100 } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["active", "escalated", "resolved"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of alerts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Alert" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts/{id}": {
+      "get": {
+        "summary": "Get alert by ID",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Alert details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Alert" }
+              }
+            }
+          },
+          "404": { "description": "Alert not found" }
+        }
+      }
+    },
+    "/alerts/{id}/resolve": {
+      "post": {
+        "summary": "Resolve an active alert",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved alert",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Alert" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hazards/geojson": {
+      "get": {
+        "summary": "Get hazard zones and points as a GeoJSON FeatureCollection",
+        "responses": {
+          "200": {
+            "description": "GeoJSON FeatureCollection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "example": "FeatureCollection" },
+                    "features": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/detections": {
+      "get": {
+        "summary": "List raw fused detections",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 100 } },
+          { "name": "class", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of raw fused detections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Detection" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mission/summary": {
+      "get": {
+        "summary": "Get aggregate mission counts and priorities",
+        "responses": {
+          "200": {
+            "description": "Mission summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total_detections": { "type": "integer" },
+                    "high_priority_detections": { "type": "integer" },
+                    "by_class": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mission/route-status": {
+      "get": {
+        "summary": "Inspect flight path against nearby hazard obstructions",
+        "responses": {
+          "200": {
+            "description": "Route obstruction status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "enum": ["clear", "obstructed"] },
+                    "obstructing_hazards": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ws/live": {
+      "get": {
+        "summary": "WebSocket stream for real-time versioned situational updates (detection, entity_update, alert, telemetry)",
+        "responses": {
+          "101": { "description": "Switching Protocols to WebSocket" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Entity": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "enum": ["survivor", "hazard"] },
+          "class": { "type": "string", "enum": ["person", "fire", "flood", "debris", "structural_damage"] },
+          "lat": { "type": "number" },
+          "lon": { "type": "number" },
+          "uncertainty_radius": { "type": "number" },
+          "track_ids": { "type": "array", "items": { "type": "string" } },
+          "observation_count": { "type": "integer" },
+          "confidence": { "type": "number" },
+          "modalities": { "type": "array", "items": { "type": "string" } },
+          "priority_score": { "type": "number" },
+          "status": { "type": "string", "enum": ["active", "rescued", "cleared"] },
+          "first_seen": { "type": "string", "format": "date-time" },
+          "last_seen": { "type": "string", "format": "date-time" },
+          "resolved_at": { "type": "string", "format": "date-time", "nullable": true },
+          "notes": { "type": "string" }
+        }
+      },
+      "Alert": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "entity_id": { "type": "string" },
+          "detection_id": { "type": "string" },
+          "priority_tier": { "type": "string", "enum": ["critical", "high", "medium"] },
+          "message": { "type": "string" },
+          "priority_score": { "type": "number" },
+          "status": { "type": "string", "enum": ["active", "escalated", "resolved"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "last_notified_at": { "type": "string", "format": "date-time" },
+          "resolved_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "Detection": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "class": { "type": "string" },
+          "confidence": { "type": "number" },
+          "lat": { "type": "number" },
+          "lon": { "type": "number" },
+          "frame_id": { "type": "string" },
+          "source": { "type": "string" },
+          "track_id": { "type": "string" },
+          "modalities": { "type": "array", "items": { "type": "string" } },
+          "detected_at": { "type": "string", "format": "date-time" },
+          "priority_score": { "type": "number" },
+          "status": { "type": "string" }
+        }
+      }
+    }
+  }
+}

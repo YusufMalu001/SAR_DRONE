@@ -13,9 +13,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"sar-drone-prototype/fusion-service/internal/alerting"
 	"sar-drone-prototype/fusion-service/internal/config"
 	"sar-drone-prototype/fusion-service/internal/connectivity"
 	"sar-drone-prototype/fusion-service/internal/db"
+	"sar-drone-prototype/fusion-service/internal/entity"
 	"sar-drone-prototype/fusion-service/internal/fusion"
 	"sar-drone-prototype/fusion-service/internal/localqueue"
 	migraterunner "sar-drone-prototype/fusion-service/internal/migrate"
@@ -112,14 +114,16 @@ func newHarness(t *testing.T) *harness {
 	hub := ws.NewHub()
 	telemetryBuf := telemetry.NewBuffer(2*time.Minute, 100)
 	hazards := priority.NewHazardTracker(time.Duration(cfg.HazardWindowSeconds)*time.Second, cfg.HazardProximityMeters)
-	consumer := fusion.NewConsumer(redisClient, pool, hub, telemetryBuf, hazards, queue, monitor, cfg)
+	clusterer := entity.NewClusterer(entity.DefaultClusterConfig())
+	alertMgr := alerting.NewManager(alerting.DefaultConfig())
+	consumer := fusion.NewConsumer(redisClient, pool, hub, telemetryBuf, hazards, clusterer, alertMgr, queue, monitor, cfg)
 
 	runCtx, stopRun := context.WithCancel(context.Background())
 	go monitor.Run(runCtx, fastTestInterval)
 	go func() { _ = consumer.Run(runCtx) }()
 	go consumer.RunDrainLoop(runCtx, fastTestInterval)
 
-	httpServer := httptest.NewServer(server.NewMux(pool, redisClient, hub, queue, monitor, cfg))
+	httpServer := httptest.NewServer(server.NewMux(pool, redisClient, hub, queue, monitor, clusterer, alertMgr, cfg))
 
 	t.Cleanup(func() {
 		httpServer.Close()
